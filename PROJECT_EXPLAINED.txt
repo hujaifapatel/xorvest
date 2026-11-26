@@ -1,0 +1,563 @@
+=====================================================================
+  ABRITÉ: A HEALTH INSURANCE COMPARISON WEBSITE (MERN STACK)
+  The whole project, explained the way a teacher would explain it
+=====================================================================
+
+Hello everyone. Today I'm going to walk you through this project from
+start to finish. I'll keep it simple. You don't need to know every line
+of code to follow along; if you understand the IDEA behind each part,
+the code will make sense when you open it.
+
+Take your time. Read one section, open the file I mention, and look at
+it. That's the best way to learn a project.
+
+
+---------------------------------------------------------------------
+ 1. WHAT IS THIS PROJECT, IN ONE BREATH?
+---------------------------------------------------------------------
+
+Imagine your uncle wants health insurance for his family. He opens a
+website, and it says "Answer a few questions and we'll tell you which
+plans suit you". He answers 14 short questions: who's in the family,
+their ages, the city, any illness, the budget, and so on. Then the
+website shows him a list of health plans from banks like HDFC, SBI,
+ICICI and Axis, ranked from "best match for you" to "worst match",
+with an honest explanation of each plan's good and bad points.
+
+That's exactly what Abrité does.
+
+The name "Abrité" is French for "sheltered" or "protected", which is
+what insurance does for you. It's an invented name; it isn't a real
+company.
+
+It was inspired by sites like PolicyBazaar, but it's our own design,
+our own questions and our own logic.
+
+
+---------------------------------------------------------------------
+ 2. WHAT CAN A USER DO ON THE SITE?
+---------------------------------------------------------------------
+
+ - Read the home page: why health insurance matters, partner banks,
+   FAQs.
+ - Click "Get quotes" or "View plans" to open a pop-up questionnaire.
+ - Answer 14 questions. Each one has a small FOLLOW-UP question that
+   appears under it. For example, if you say "Yes" to tobacco, it asks
+   "How often?". If you say "No", it asks about alcohol instead.
+ - See a SUMMARY of every answer before submitting, with an Edit
+   button next to each one.
+ - Register or log in (the site asks only at this point, because your
+   results are saved to your account).
+ - See RESULTS: the recommended cover amount, then plan cards with a
+   match %, monthly price, key features, and "Why this plan?".
+ - Tick up to 3 plans and COMPARE them side by side in a table.
+ - Click "I'm interested" on any plan to save it to a personal list.
+ - Visit "My account" to see saved plans and past recommendations.
+ - Browse "All plans" without answering anything.
+
+
+---------------------------------------------------------------------
+ 3. WHAT IS "MERN"? (THE TECHNOLOGY)
+---------------------------------------------------------------------
+
+MERN is just four tools that work well together. Think of a restaurant:
+
+  M - MongoDB     The STORE ROOM. It keeps all the data: banks, plans,
+                  users, saved results. We use the free cloud version,
+                  "MongoDB Atlas", so the data lives online, not on
+                  one laptop.
+
+  E - Express     The KITCHEN. It receives requests ("give me the
+                  plans", "log me in"), does the work, and sends back
+                  an answer. It runs on Node.js.
+
+  R - React       The DINING ROOM. Everything the customer sees and
+                  clicks: pages, buttons, the pop-up, the cards.
+
+  N - Node.js     The BUILDING the kitchen runs in. It lets us run
+                  JavaScript on a computer or server, not just in a
+                  browser.
+
+So: the user clicks something in React → React asks Express → Express
+fetches or saves data in MongoDB → Express replies → React shows the
+result.
+
+Why MongoDB and not something like PostgreSQL? Two reasons:
+  1. MERN means MongoDB; it's part of the stack we were asked to use.
+  2. Our data fits it naturally. A health plan has lots of uneven
+     details (maternity limits, waiting periods, a list of illnesses
+     it refuses). MongoDB stores each plan as one flexible "document",
+     like a JSON object, so we don't need dozens of linked tables.
+
+
+---------------------------------------------------------------------
+ 4. THE FOLDER STRUCTURE (WHERE THINGS LIVE)
+---------------------------------------------------------------------
+
+  Xorvest/
+  ├── client/            ← the FRONTEND (React website)
+  │   ├── index.html     ← the single HTML page React lives inside
+  │   └── src/
+  │       ├── main.jsx       ← starts React
+  │       ├── App.jsx        ← header, footer, list of pages
+  │       ├── brand.js       ← the site name "Abrité" (change it here)
+  │       ├── styles.css     ← all the colours and layout
+  │       ├── lib/
+  │       │   ├── api.js       ← every call to the backend
+  │       │   ├── session.jsx  ← who's logged in + interested plans
+  │       │   └── format.js    ← helpers like "₹1,572" formatting
+  │       ├── components/
+  │       │   ├── Wizard.jsx   ← the questionnaire pop-up
+  │       │   ├── AuthForm.jsx ← the register / login form
+  │       │   └── ui.jsx       ← small pieces: icons, avatars,
+  │       │                      bank logo tile, Interested button
+  │       └── pages/         ← one file per page
+  │           ├── Home.jsx, Results.jsx, Compare.jsx,
+  │           ├── AllPlans.jsx, Account.jsx, AuthPage.jsx
+  │
+  ├── server/            ← the BACKEND (Express + MongoDB)
+  │   ├── .env           ← SECRET settings (never shared, not on GitHub)
+  │   └── src/
+  │       ├── index.js       ← starts the server
+  │       ├── db.js          ← connects to MongoDB, fills it with data
+  │       ├── data.js        ← the list of banks and plans
+  │       ├── models.js      ← the shape of each kind of data
+  │       ├── questions.js   ← the 14 questions + checking answers
+  │       ├── engine.js      ← the "brain" that ranks plans
+  │       ├── auth.js        ← register, login, security
+  │       ├── routes.js      ← the list of API addresses
+  │       ├── seed.js        ← reloads banks and plans on demand
+  │       └── engine.test.js ← automatic tests
+  │
+  ├── screenshots/       ← pictures of every screen (desktop, tablet,
+  │                        mobile)
+  ├── README.md          ← short technical guide
+  └── PROJECT_EXPLAINED.txt  ← this file
+
+
+---------------------------------------------------------------------
+ 5. HOW TO RUN IT ON YOUR OWN COMPUTER
+---------------------------------------------------------------------
+
+  1. Install Node.js version 20 or newer (nodejs.org).
+  2. Get the code:
+        git clone https://github.com/hujaifapatel/xorvest.git
+        cd xorvest
+        npm install
+        npm run install:all
+  3. Create the file server/.env with two important lines:
+        MONGODB_URI=<the database address, ask the project owner>
+        JWT_SECRET=<any long random sentence>
+  4. Start it:
+        npm run dev
+  5. Open http://localhost:5173 in your browser.
+
+"npm run dev" starts TWO things at once:
+  - the backend (Express) on port 5050
+  - the frontend (React, via a tool called Vite) on port 5173
+
+Why do we need the .env file? Because it holds the database password.
+Passwords must never be uploaded to GitHub, so everyone keeps their own
+.env file privately. This is the number one reason the project "doesn't
+work" on a friend's computer: the .env file is missing.
+
+One more thing: MongoDB Atlas only accepts connections from IP
+addresses you allow, so a new computer has to be added under Atlas →
+Network Access.
+
+
+---------------------------------------------------------------------
+ 6. THE USER'S JOURNEY, STEP BY STEP
+---------------------------------------------------------------------
+
+Let's follow one user, Ravi, through the whole site.
+
+ Step 1, HOME PAGE
+   Ravi lands on the home page. React asks the backend for the list of
+   banks ("GET /api/banks") and shows 8 bank cards. On the right is a
+   quote card where he picks "Male" and ticks Self, Wife and Son.
+
+ Step 2, THE POP-UP QUESTIONNAIRE
+   He clicks "View plans" and a pop-up (a "modal") opens. React asks
+   the backend for the questions ("GET /api/questions"). Interesting
+   design choice: the questions live on the SERVER, not in the React
+   code, so we can change a question in one place and both sides stay
+   in sync.
+
+   Ravi sees ONE question at a time. When he answers, a follow-up box
+   appears underneath. When he answers the follow-up, the pop-up moves
+   to the next question by itself. His answers are kept in the
+   browser's "sessionStorage", so refreshing the page doesn't lose
+   them.
+
+   The 14 questions are:
+      1. Gender               → follow-up: occupation
+      2. Who to insure        → do all live in the same city?
+      3. Ages                 → medical check-up in the last year?
+      4. City                 → which hospitals do you prefer?
+      5. Existing illness     → since when? (or family history if none)
+      6. Tobacco              → how often? (or alcohol if no)
+      7. Hospital admissions  → reason? (or planned treatment if none)
+      8. Income               → how many earning members?
+      9. Monthly budget       → pay monthly / yearly / every 2–3 years?
+     10. Employer cover       → covers parents? (or past policy if none)
+     11. Room type            → want treatment at home covered?
+     12. Co-pay               → what share? (or a deductible if no)
+     13. Doctor visits (OPD)  → what for? (or free check-up if no)
+     14. Top priority         → second priority?
+
+ Step 3, THE SUMMARY
+   After question 14, Ravi sees every answer listed, each with an Edit
+   button. If he edits one, the pop-up jumps to that question and then
+   comes straight back to the summary.
+
+ Step 4, REGISTER / LOG IN
+   He clicks "Confirm & view plans". He isn't logged in, so the pop-up
+   shows a register form. (We ask only now, at the moment it's actually
+   needed, which is friendlier.) He creates an account.
+
+ Step 5, THE MAGIC MOMENT
+   React sends all his answers to the backend ("POST /api/assessments").
+   The backend:
+     - double-checks every answer is valid,
+     - loads all 16 plans from MongoDB,
+     - runs them through the "engine" (explained in section 9),
+     - saves the result in the database,
+     - replies with an ID number for this result.
+   React then opens the results page for that ID.
+
+ Step 6, RESULTS
+   Ravi sees "We recommend a cover of ₹15 Lakh" (with an explanation
+   of how we got that number), then the plan cards. The top one has a
+   "Best match for you" ribbon. Each card shows the match %, monthly
+   price, a ✓ feature list, an "I'm interested" button, and "Why this
+   plan?", which opens the reasons and drawbacks. Plans he can't buy
+   are listed at the bottom with the reason, e.g. "Entry closes at age
+   40".
+
+ Step 7, COMPARE AND SAVE
+   He ticks 3 plans → "Compare plans" → a table with a ★ on the best
+   value in each row. He clicks "I'm interested" on two plans; they
+   appear in "My account", along with all his past recommendations.
+
+
+---------------------------------------------------------------------
+ 7. THE BACKEND, FILE BY FILE
+---------------------------------------------------------------------
+
+Think of the backend as an office with departments.
+
+ index.js, THE RECEPTION
+   The first file that runs. It opens the office: loads the secret
+   settings from .env, connects to the database, makes sure the banks
+   and plans are there, and starts listening for requests on port 5050.
+   If the database can't be reached, it prints a clear message saying
+   what to check, instead of a scary error.
+
+ db.js, THE STORE-ROOM KEEPER
+   Connects to MongoDB Atlas. It has a small trick: some Windows
+   networks fail to look up Atlas's address, so if that happens it
+   retries using Google's public address book (DNS). It also has
+   seedCatalogue(), which fills the database with banks and plans from
+   data.js if they're missing.
+
+ data.js, THE PRODUCT CATALOGUE
+   The list of 8 banks and 16 plans (2 per bank). Each plan has its
+   rules: room rent limit, waiting period for existing illnesses,
+   co-pay, OPD cover, maximum entry age, base price, and so on.
+   Important: the BANK NAMES are real, but the plan names and numbers
+   are SAMPLE data we made up for learning. They are not real offers.
+
+ models.js, THE FORMS / TEMPLATES
+   Defines the shape of each kind of record we store. There are 5
+   collections (a "collection" in MongoDB is like a table):
+      banks        - the 8 banks
+      plans        - the 16 plans, each linked to its bank
+      users        - name, email, mobile, and a HASHED password
+      assessments  - one saved questionnaire + its ranked results,
+                     linked to a user
+      interests    - plans a user marked "interested", plus the price
+                     they saw, linked to the user and the plan
+
+ questions.js, THE QUESTION PAPER AND THE EXAMINER
+   Holds the 14 questions and their follow-ups. It also has
+   validateAnswers(), which checks every answer the browser sends
+   BEFORE we use it. Never trust data from the browser blindly;
+   someone could send rubbish on purpose. The server always checks.
+
+ engine.js, THE BRAIN (see section 9 for details)
+   Takes the answers and the plans, and returns the ranked list.
+
+ auth.js, THE SECURITY GUARD
+   Handles register and login, and has a guard called requireAuth that
+   stands in front of private pages and checks your "pass" (token).
+
+ routes.js, THE DIRECTORY BOARD
+   The list of every address the frontend can call and which
+   department handles it. For example:
+      POST /api/auth/register   → create an account
+      POST /api/auth/login      → log in
+      GET  /api/questions       → the questionnaire
+      GET  /api/banks           → the banks
+      GET  /api/plans           → the plans
+      POST /api/assessments     → submit answers, get ranked plans
+      GET  /api/assessments     → my past results
+      GET/POST/DELETE /api/interests → my interested plans
+
+   GET means "give me something", POST "create something", DELETE
+   "remove something".
+
+ seed.js and engine.test.js, THE HELPERS
+   seed.js reloads the catalogue when you run "npm run seed".
+   engine.test.js holds 8 automatic tests ("npm test") that check the
+   brain still behaves correctly after any change.
+
+
+---------------------------------------------------------------------
+ 8. HOW LOGIN AND SECURITY WORK
+---------------------------------------------------------------------
+
+This part often confuses beginners, so let's go slowly.
+
+ Storing passwords
+   We NEVER store the actual password. When you register, the password
+   goes through "bcrypt", which turns "mypassword123" into something
+   like "$2a$10$Xk9...". This is called hashing, and it's one-way: you
+   can't turn the hash back into the password. When you log in, we
+   hash what you typed and check whether the two hashes match. So even
+   if someone stole our database, they wouldn't get anyone's password.
+
+ Staying logged in: the JWT "wristband"
+   Think of a concert. At the gate you show your ticket once (email +
+   password), and they give you a wristband. After that you just show
+   the wristband.
+
+   Our wristband is a "JWT" (JSON Web Token). After login, the server
+   gives the browser a token that says "this is user number 6b07…",
+   signed with a secret key only the server knows (JWT_SECRET in .env).
+   Nobody can forge or edit it without that key. It expires after 7
+   days.
+
+   The browser keeps the token in "localStorage" and attaches it to
+   every request as:   Authorization: Bearer <token>
+
+   On private routes, requireAuth checks the token. Valid → the request
+   goes through, and we know WHO it is. Missing or invalid → the server
+   replies "401 Please log in to continue".
+
+   Logging out simply deletes the token from the browser.
+
+ Privacy
+   When you ask for a saved result, the server looks it up by ID AND
+   your user ID, so you can only ever see your own results, never
+   someone else's.
+
+
+---------------------------------------------------------------------
+ 9. THE BRAIN: HOW PLANS GET RANKED (engine.js)
+---------------------------------------------------------------------
+
+This is the most interesting part, so let's use a real example:
+
+   Ravi (34), his wife (31) and their son. They live in Mumbai, have no
+   illness, don't smoke, and want to spend about ₹2,000 a month.
+
+ Step 1, MAKE A PROFILE
+   Turn the answers into simple facts: 2 adults, 1 child, 3 people in
+   total, eldest age 34, metro city, no illness, budget ₹2,000.
+
+ Step 2, HOW MUCH COVER DO THEY NEED?
+   Start from the city: metros are expensive, so ₹10 lakh (large
+   cities ₹7 lakh, others ₹5 lakh). Each extra adult adds 40% and each
+   child 15%:
+        10 × (1 + 0.40 + 0.15) = 15.5 lakh
+   Add more if someone is 45+ or 60+, or has an illness. Subtract half
+   of any office cover (because it disappears if you change jobs).
+   Don't exceed what their income can sensibly support. Then round to
+   the nearest standard amount: ₹15 lakh.
+
+ Step 3, REMOVE PLANS THEY CAN'T BUY
+   A plan is removed if the eldest person is too old for it, if it's a
+   senior-citizen plan but the family is young, if it covers only one
+   person, or if it refuses an illness someone has. These are shown
+   at the bottom of the results, with the reason.
+
+ Step 4, ESTIMATE THE PRICE
+   Every plan has a "base rate": the yearly price for ONE 30-year-old
+   with ₹5 lakh cover in a metro. We adjust it:
+        × age factor      (older is more expensive; age 34 → ×1)
+        × family factor   (3 people → ×1.5, not ×3)
+        × cover factor    (₹15L is about ×1.64 the ₹5L price)
+        × city factor     (metro ×1, large city ×0.9, others ×0.8)
+        × risk loading    (daily tobacco +15%, each illness +7%,
+                           a co-pay makes it cheaper)
+        × 1.18            (18% GST)
+   For HDFC's "Optimum Family Health" (base ₹6,500), that comes to
+   about ₹18,862 a year, or about ₹1,572 a month.
+
+ Step 5, GIVE A MATCH SCORE (0–100%)
+   We score each plan from 0 to 1 on several things:
+      - Price:    how it compares to the budget (cheaper is better;
+                  over budget drops fast)
+      - Coverage: room rent freedom, restore benefit, bonus, etc.
+      - Claims:   how many claims the bank pays, and how fast
+      - Network:  how many cashless hospitals
+      - Room:     does the room rule match what they asked for?
+      - Co-pay:   do they have to share the bill?
+   Plus extra items ONLY if relevant: illness waiting time, OPD,
+   restore after a claim, a free check-up.
+
+   Then each item gets a WEIGHT (how much it matters), and the user's
+   top priority counts DOUBLE. If Ravi chose "Lowest premium", the
+   price matters twice as much for him as for someone who chose
+   "Widest coverage". The second priority counts 1.4×.
+
+   The final match % is the weighted average. Simple idea, powerful
+   result: two families can see the same plans in a completely
+   different order, because they care about different things.
+
+ Step 6, EXPLAIN IN PLAIN ENGLISH
+   For every plan we write short reasons ("Within your budget at
+   ₹1,572 a month", "No room rent limit") and drawbacks ("You pay 20%
+   of every claim"). We list the things the user specifically asked
+   about first, because those matter most to them.
+
+ Finally, we sort by match %, cheapest first if two plans tie.
+
+
+---------------------------------------------------------------------
+ 10. THE FRONTEND, IN SIMPLE WORDS
+---------------------------------------------------------------------
+
+ - main.jsx starts React and puts the App on the page.
+ - App.jsx is the frame of every page: the header (logo, menu, Log in /
+   My account), the footer, and the "routes", which say which page to
+   show for which address (/ → Home, /plans/123 → Results, /compare →
+   Compare, and so on). Pages like Results and My account are wrapped
+   in a "Private" guard that sends logged-out users to the login page.
+ - lib/api.js is the ONLY place that talks to the backend. Every page
+   calls api.something(), and this file adds the token automatically.
+ - lib/session.jsx remembers who is logged in and their interested
+   plans, and shares that with every page (React "Context").
+ - components/Wizard.jsx is the pop-up: it shows one question at a
+   time, the follow-up, the summary, and the login step.
+ - pages/ has one file per page, each doing its own small job.
+
+ Design: we deliberately avoided a "copied" look. The colours are deep
+ teal with coral buttons, the font is "Manrope", the cards are clean
+ and white, and it works on desktop, tablet and phone. You can see
+ every screen in the screenshots folder.
+
+
+---------------------------------------------------------------------
+ 11. WHAT HAPPENS "ON THE WIRE" (NETWORK)
+---------------------------------------------------------------------
+
+ Press F12 in Chrome → Network tab → filter "Fetch/XHR", and you can
+ watch the website talk to the server live. For example:
+
+   GET  /api/banks          → 200 OK        (bank list loaded)
+   POST /api/auth/login     → 401           (wrong password)
+   POST /api/auth/login     → 200 OK        (right password → token)
+   POST /api/assessments    → 201 Created   (answers scored and saved)
+   GET  /api/assessments/ID → 200 OK        (results page loads)
+   POST /api/interests      → 201 Created   (plan saved as interested)
+
+ Status codes in one line: 200 = OK, 201 = created, 400 = bad input,
+ 401 = please log in, 404 = not found, 500 = server error.
+
+ In development you'll see each request TWICE. That's React's
+ "StrictMode" double-checking our code; it doesn't happen in the
+ final built version.
+
+
+---------------------------------------------------------------------
+ 12. COMMON PROBLEMS AND HOW TO FIX THEM
+---------------------------------------------------------------------
+
+ "Could not connect to MongoDB"
+     → Your IP address isn't allowed in Atlas → Network Access.
+ "bad auth : authentication failed"
+     → Wrong username or password inside MONGODB_URI in server/.env.
+       Special characters like @ or # in the password must be written
+       as %40 and %23.
+ "MONGODB_URI is missing"
+     → The server/.env file doesn't exist, or is in the wrong folder.
+ "EADDRINUSE :5050"
+     → The server is already running in another window. Close it.
+ Website says "Could not reach the server"
+     → The backend isn't running; check the terminal.
+ Strange syntax errors on start
+     → Node.js is too old. Install version 20+.
+
+
+---------------------------------------------------------------------
+ 13. HONEST LIMITATIONS (GOOD TO MENTION IN A PRESENTATION)
+---------------------------------------------------------------------
+
+ - The plans and prices are SAMPLE data for learning. A real product
+   would get them from the insurers themselves.
+ - Prices are ESTIMATES. Real insurers decide the final price after a
+   medical check.
+ - Selling or advising on insurance in India legally needs IRDAI
+   registration. This is a student / demo project.
+ - Some follow-up answers (like occupation or alcohol) are saved but
+   don't yet change the ranking. They're ready for future
+   improvements.
+ - There's no "Buy now" payment step. "I'm interested" saves the plan,
+   which is where a real company would contact the customer.
+
+
+---------------------------------------------------------------------
+ 14. QUESTIONS YOUR AUDIENCE MIGHT ASK (AND ANSWERS)
+---------------------------------------------------------------------
+
+ Q: Why ask users to log in?
+ A: To save their results and interested plans to their account, so
+    they can come back later. We ask only at the end, so they don't
+    leave the site before seeing any value.
+
+ Q: Why are the questions stored on the server?
+ A: So the questions and the validation stay in ONE place. Change a
+    question once, and both the website and the checking logic update.
+
+ Q: Can a hacker change the price shown?
+ A: They can change what THEIR browser displays, but the real
+    calculation happens on the server, and the server checks every
+    answer it receives. Data saved in the database always comes from
+    the server's own calculation.
+
+ Q: What's the difference between sessionStorage and localStorage?
+ A: sessionStorage is cleared when the tab is closed; we use it for
+    half-finished questionnaire answers. localStorage stays until
+    deleted; we use it for the login token.
+
+ Q: Why is the floater price not simply 3× for 3 people?
+ A: Because all members SHARE one cover amount, and it's unlikely
+    everyone gets hospitalised in the same year. That's how real
+    family floater plans work.
+
+ Q: How would you put it online for free?
+ A: MongoDB Atlas is already free. The app can run on Render's free
+    plan: Express serves both the API and the built React site from
+    one address. (Free servers sleep after 15 minutes of no visitors,
+    so the first visit takes a little longer.)
+
+
+---------------------------------------------------------------------
+ 15. ONE-PARAGRAPH SUMMARY (FOR THE END OF A PRESENTATION)
+---------------------------------------------------------------------
+
+ Abrité is a MERN-stack website that helps a family choose health
+ insurance. A pop-up asks 14 simple questions, each with a follow-up.
+ After a quick account sign-up, a server-side engine works out how
+ much cover the family needs, removes plans they can't buy, estimates
+ each plan's price, and scores every plan from 0 to 100 based on what
+ the family said matters most. Users see clear reasons and drawbacks,
+ can compare plans side by side, and can save the plans they like.
+ React builds the screens, Express runs the logic and security
+ (bcrypt passwords, JWT tokens), and MongoDB Atlas stores the banks,
+ plans, users, results and saved plans.
+
+ Thank you. Questions?
+=====================================================================
