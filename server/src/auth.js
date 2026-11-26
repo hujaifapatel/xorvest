@@ -1,75 +1,52 @@
-import { Router } from 'express';
+// Register / login with hashed passwords and JSON Web Tokens.
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User } from './models/User.js';
+import { User } from './models.js';
 
-const TOKEN_TTL = '7d';
+const publicUser = (u) => ({ id: u._id, name: u.name, email: u.email, mobile: u.mobile });
+const issueToken = (u) => ({ token: jwt.sign({ sub: String(u._id) }, process.env.JWT_SECRET, { expiresIn: '7d' }), user: publicUser(u) });
 
-function secret() {
-  const s = process.env.JWT_SECRET;
-  if (!s) throw new Error('JWT_SECRET is not set in server/.env');
-  return s;
-}
-
-const sign = (user) => jwt.sign({ sub: String(user._id) }, secret(), { expiresIn: TOKEN_TTL });
-
+// Middleware: only lets the request through with a valid "Authorization: Bearer <token>".
 export function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'Please log in to continue.' });
   try {
-    req.userId = jwt.verify(token, secret()).sub;
+    const token = (req.headers.authorization || '').replace('Bearer ', '');
+    req.userId = jwt.verify(token, process.env.JWT_SECRET).sub;
     next();
   } catch {
-    res.status(401).json({ error: 'Your session has expired. Please log in again.' });
+    res.status(401).json({ error: 'Please log in to continue.' });
   }
 }
-
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const MOBILE = /^[6-9]\d{9}$/;
 
 export function validateRegistration({ name, email, mobile, password } = {}) {
-  const errors = {};
-  if (!name || String(name).trim().length < 2) errors.name = 'Please enter your full name.';
-  if (!email || !EMAIL.test(String(email).trim())) errors.email = 'Please enter a valid email address.';
-  if (mobile && !MOBILE.test(String(mobile).trim())) errors.mobile = 'Enter a 10-digit Indian mobile number.';
-  if (!password || String(password).length < 8) errors.password = 'Use at least 8 characters.';
-  return errors;
+  const fields = {};
+  if (!name || name.trim().length < 2) fields.name = 'Please enter your full name.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email || '')) fields.email = 'Please enter a valid email address.';
+  if (mobile && !/^[6-9]\d{9}$/.test(mobile)) fields.mobile = 'Enter a 10-digit Indian mobile number.';
+  if (!password || password.length < 8) fields.password = 'Use at least 8 characters.';
+  return fields;
 }
 
-const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
-
-export const authRouter = Router();
-
-authRouter.post('/register', wrap(async (req, res) => {
-  const errors = validateRegistration(req.body);
-  if (Object.keys(errors).length) return res.status(400).json({ error: 'Please check the highlighted fields.', fields: errors });
-
-  const email = String(req.body.email).trim().toLowerCase();
-  if (await User.exists({ email })) {
-    return res.status(409).json({ error: 'An account with this email already exists. Please log in.', fields: { email: 'Already registered.' } });
+export async function register(req, res) {
+  const fields = validateRegistration(req.body);
+  if (Object.keys(fields).length) return res.status(400).json({ error: 'Please check the highlighted fields.', fields });
+  const { name, email, mobile, password } = req.body;
+  if (await User.exists({ email: email.toLowerCase() })) {
+    return res.status(409).json({ error: 'This email is already registered. Please log in.', fields: { email: 'Already registered.' } });
   }
-  const user = await User.create({
-    name: String(req.body.name).trim(),
-    email,
-    mobile: req.body.mobile ? String(req.body.mobile).trim() : undefined,
-    passwordHash: await bcrypt.hash(String(req.body.password), 10),
-  });
-  res.status(201).json({ token: sign(user), user: user.toPublic() });
-}));
+  const user = await User.create({ name: name.trim(), email, mobile: mobile || undefined, passwordHash: await bcrypt.hash(password, 10) });
+  res.status(201).json(issueToken(user));
+}
 
-authRouter.post('/login', wrap(async (req, res) => {
-  const email = String(req.body?.email || '').trim().toLowerCase();
-  const password = String(req.body?.password || '');
-  const user = email && (await User.findOne({ email }));
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+export async function login(req, res) {
+  const user = await User.findOne({ email: String(req.body.email || '').toLowerCase().trim() });
+  if (!user || !(await bcrypt.compare(String(req.body.password || ''), user.passwordHash))) {
     return res.status(401).json({ error: 'Incorrect email or password.' });
   }
-  res.json({ token: sign(user), user: user.toPublic() });
-}));
+  res.json(issueToken(user));
+}
 
-authRouter.get('/me', requireAuth, wrap(async (req, res) => {
+export async function me(req, res) {
   const user = await User.findById(req.userId);
   if (!user) return res.status(401).json({ error: 'Account not found.' });
-  res.json({ user: user.toPublic() });
-}));
+  res.json({ user: publicUser(user) });
+}

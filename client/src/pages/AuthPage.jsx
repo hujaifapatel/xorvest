@@ -1,24 +1,22 @@
+// /login and /register pages.
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AuthForm from '../components/AuthForm.jsx';
-import { useAuth } from '../lib/auth.jsx';
+import { useSession } from '../lib/session.jsx';
 
 export default function AuthPage({ mode }) {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const { user } = useAuth();
-  const next = params.get('next');
-  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/account';
+  const { user } = useSession();
+  const next = useSearchParams()[0].get('next');
+  const target = next?.startsWith('/') && !next.startsWith('//') ? next : '/account'; // only same-site redirects
 
   useEffect(() => {
-    if (user) navigate(safeNext, { replace: true });
-  }, [user, navigate, safeNext]);
+    if (user) navigate(target, { replace: true });
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <AuthForm key={mode} initialMode={mode} onDone={() => navigate(safeNext, { replace: true })} />
-      </div>
+      <div className="auth-card"><AuthForm key={mode} initialMode={mode} /></div>
     </div>
   );
 }

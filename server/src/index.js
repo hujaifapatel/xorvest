@@ -1,36 +1,27 @@
+// Server entry point: connect to MongoDB, seed the catalogue, start the API.
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { connectDb } from './db.js';
-import { seedCatalogue } from './seed/seed.js';
+import { connectDb, seedCatalogue } from './db.js';
 import { api } from './routes.js';
 
 const app = express();
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
-app.use(express.json({ limit: '50kb' }));
-
-app.get('/health', (req, res) => res.json({ ok: true }));
+app.use(express.json());
 app.use('/api', api);
-
 app.use((err, req, res, next) => {
   console.error(err);
   res.status(500).json({ error: 'Something went wrong on our side.' });
 });
 
-const port = Number(process.env.PORT) || 5050;
-
 try {
   await connectDb();
+  await seedCatalogue();
 } catch (err) {
-  if (err.code === 8000 || /auth/i.test(err.message)) {
-    console.error('[db] Atlas rejected the username/password in server/.env (MONGODB_URI).');
-    console.error('[db] Check Atlas → Database Access, and URL-encode special characters in the password (@ → %40, # → %23).');
-  } else if (/whitelist|IP|ENOTFOUND|timed out/i.test(err.message)) {
-    console.error('[db] Could not reach Atlas. Add your current IP under Atlas → Network Access.');
-  } else {
-    console.error('[db] Could not connect:', err.message);
-  }
+  console.error('[db] Could not connect to MongoDB:', err.message);
+  console.error('[db] Check MONGODB_URI in server/.env and that your IP is allowed in Atlas → Network Access.');
   process.exit(1);
 }
-await seedCatalogue();
-app.listen(port, () => console.log(`[api] listening on http://localhost:${port}`));
+
+const port = process.env.PORT || 5050;
+app.listen(port, () => console.log(`[api] running on http://localhost:${port}`));

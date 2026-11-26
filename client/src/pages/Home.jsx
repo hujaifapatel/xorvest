@@ -1,9 +1,9 @@
+// Landing page: hero with quote card, why buy insurance, partner banks, FAQ.
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useWizard, MemberTiles } from '../components/Wizard.jsx';
-import BankMono from '../components/BankMono.jsx';
-import { Shield, Hospital, Clock, Wallet, Arrow } from '../components/Icons.jsx';
+import { BankMono, Shield, Hospital, Clock, Wallet, Arrow } from '../components/ui.jsx';
 
 const ADULTS = ['self', 'spouse', 'father', 'mother'];
 
@@ -15,7 +15,7 @@ function QuoteCard() {
 
   const go = () => {
     if (!ADULTS.some((k) => members[k])) return setError('Select at least one adult to continue.');
-    start({ prefill: { gender, members }, at: 2 });
+    start({ gender, members }, 2); // jump straight to the ages question
   };
 
   return (
@@ -91,7 +91,7 @@ export default function Home() {
           <div className="bank-grid">
             {banks.map((b) => (
               <Link className="bank-card" key={b.slug} to={`/all-plans?bank=${b.slug}`}>
-                <BankMono monogram={b.monogram} tint={b.tint} />
+                <BankMono plan={b} />
                 <span>
                   <b>{b.name}</b>
                   <span>{b.plans} plan{b.plans === 1 ? '' : 's'} · {b.claimSettlementRatio}% claims settled</span>
@@ -123,19 +123,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section" id="how">
-        <div className="wrap">
-          <div className="section-title">
-            <div className="eyebrow">How it works</div>
-            <h2>The right plan in three steps</h2>
-          </div>
-          <div className="steps">
-            <div className="step"><h3>Tell us about your family</h3><p>Members, ages, city, health and budget. 15 questions, about two minutes.</p></div>
-            <div className="step"><h3>We compare every plan</h3><p>Eligibility, estimated premium and a match score for each plan, weighted by what matters to you.</p></div>
-            <div className="step"><h3>Pick with confidence</h3><p>See why each plan fits, what it doesn’t cover, and compare up to three side by side.</p></div>
-          </div>
-        </div>
-      </section>
 
       <section className="section" id="faq">
         <div className="wrap">

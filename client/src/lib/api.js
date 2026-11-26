@@ -1,65 +1,39 @@
-const TOKEN_KEY = 'pr.token';
+// Talks to the Express API. The login token lives in localStorage and is sent with every request.
+const safe = (fn, fallback) => { try { return fn(); } catch { return fallback; } };
 
-export const tokenStore = {
-  get() {
-    try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
-  },
-  set(t) {
-    try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
-  },
+export const token = {
+  get: () => safe(() => localStorage.getItem('token'), null),
+  set: (t) => safe(() => (t ? localStorage.setItem('token', t) : localStorage.removeItem('token'))),
 };
 
-export class ApiError extends Error {
-  constructor(message, status, body) {
-    super(message);
-    this.status = status;
-    this.fields = body?.fields;
-  }
-}
+// Questionnaire answers survive a page refresh (sessionStorage).
+export const store = {
+  get: (key, fallback) => safe(() => JSON.parse(sessionStorage.getItem(key)) ?? fallback, fallback),
+  set: (key, value) => safe(() => sessionStorage.setItem(key, JSON.stringify(value))),
+};
 
-async function request(path, { method = 'GET', body } = {}) {
-  const headers = { 'Content-Type': 'application/json' };
-  const token = tokenStore.get();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  const res = await fetch(`/api${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+async function request(path, method = 'GET', body) {
+  const res = await fetch(`/api${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token.get() && { Authorization: `Bearer ${token.get()}` }) },
+    body: body && JSON.stringify(body),
+  });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(data.errors?.join('; ') || data.error || `Request failed (${res.status})`, res.status, data);
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong.'), { status: res.status, fields: data.fields });
   return data;
 }
 
 export const api = {
   questions: () => request('/questions'),
   banks: () => request('/banks'),
-  plans: ({ slugs, bank } = {}) => {
-    const q = new URLSearchParams();
-    if (slugs) q.set('slugs', slugs.join(','));
-    if (bank) q.set('bank', bank);
-    return request(`/plans${q.size ? `?${q}` : ''}`);
-  },
-  assess: (answers) => request('/assessments', { method: 'POST', body: { answers } }),
+  plans: (slugs) => request(`/plans${slugs ? `?slugs=${slugs.join(',')}` : ''}`),
+  register: (form) => request('/auth/register', 'POST', form),
+  login: (form) => request('/auth/login', 'POST', form),
+  me: () => request('/auth/me'),
+  assess: (answers) => request('/assessments', 'POST', { answers }),
   assessments: () => request('/assessments'),
   assessment: (id) => request(`/assessments/${id}`),
-  register: (form) => request('/auth/register', { method: 'POST', body: form }),
-  login: (form) => request('/auth/login', { method: 'POST', body: form }),
-  me: () => request('/auth/me'),
   interests: () => request('/interests'),
-  addInterest: (planSlug, assessmentId) => request('/interests', { method: 'POST', body: { planSlug, assessmentId } }),
-  removeInterest: (planSlug) => request(`/interests/${encodeURIComponent(planSlug)}`, { method: 'DELETE' }),
-};
-
-export const store = {
-  get(key, fallback) {
-    try {
-      const v = sessionStorage.getItem(key);
-      return v ? JSON.parse(v) : fallback;
-    } catch {
-      return fallback;
-    }
-  },
-  set(key, value) {
-    try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
-  },
-  remove(key) {
-    try { sessionStorage.removeItem(key); } catch { /* ignore */ }
-  },
+  addInterest: (planSlug, assessmentId) => request('/interests', 'POST', { planSlug, assessmentId }),
+  removeInterest: (slug) => request(`/interests/${slug}`, 'DELETE'),
 };

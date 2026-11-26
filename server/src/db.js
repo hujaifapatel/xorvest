@@ -1,37 +1,30 @@
 import dns from 'node:dns';
 import mongoose from 'mongoose';
-
-let memoryServer = null;
-
-const FALLBACK_DNS = (process.env.MONGODB_DNS_SERVERS || '8.8.8.8,1.1.1.1').split(',').map((s) => s.trim());
+import { Bank, Plan } from './models.js';
+import { BANKS, PLANS } from './data.js';
 
 export async function connectDb() {
-  let uri = process.env.MONGODB_URI;
-
-  if (!uri) {
-    const { MongoMemoryServer } = await import('mongodb-memory-server');
-    memoryServer = await MongoMemoryServer.create();
-    uri = memoryServer.getUri('xorvest');
-    console.log('[db] MONGODB_URI not set; using an in-memory MongoDB (data resets on restart)');
-  }
-
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error('MONGODB_URI is missing in server/.env');
   try {
-    await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
+    await mongoose.connect(uri);
   } catch (err) {
-    // Node's resolver can fail SRV lookups on some Windows/router setups even
-    // when the OS resolves them; retry once through public DNS.
-    if (uri.startsWith('mongodb+srv://') && err.syscall === 'querySrv') {
-      console.warn(`[db] SRV lookup failed (${err.code}); retrying via ${FALLBACK_DNS.join(', ')}`);
-      dns.setServers(FALLBACK_DNS);
-      await mongoose.connect(uri, { serverSelectionTimeoutMS: 15000 });
-    } else {
-      throw err;
-    }
+    // Some Windows networks refuse Node's lookup of Atlas addresses; retry via public DNS.
+    if (err.syscall !== 'querySrv') throw err;
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+    await mongoose.connect(uri);
   }
-  console.log(`[db] connected to ${mongoose.connection.host}/${mongoose.connection.name}`);
+  console.log('[db] connected to MongoDB');
 }
 
-export async function disconnectDb() {
-  await mongoose.disconnect();
-  if (memoryServer) await memoryServer.stop();
+// Fill the banks and plans collections from data.js when they are empty or out of date.
+export async function seedCatalogue(force = false) {
+  const upToDate = (await Bank.countDocuments()) === BANKS.length && (await Plan.countDocuments()) === PLANS.length;
+  if (upToDate && !force) return;
+
+  await Promise.all([Bank.deleteMany(), Plan.deleteMany()]);
+  const banks = await Bank.insertMany(BANKS);
+  const idOf = Object.fromEntries(banks.map((b) => [b.slug, b._id]));
+  await Plan.insertMany(PLANS.map((p) => ({ ...p, bank: idOf[p.bank] })));
+  console.log(`[db] seeded ${banks.length} banks and ${PLANS.length} plans`);
 }
