@@ -79,7 +79,7 @@ export default function Results() {
               <h1>We recommend a cover of <span>{cover(p.recommendedSumInsured)}</span></h1>
               <p>{results.length} plans available for your family · {declined.length} not eligible</p>
             </div>
-            <button className="btn outline" onClick={() => start(a, 15)}>Edit answers</button>
+            <button className="btn outline" onClick={() => start(a, 99)}>Edit answers</button>
           </div>
           <div className="tags">
             {members.map((m) => <span className="tag" key={m}>{m}</span>)}

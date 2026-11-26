@@ -399,3 +399,9 @@ section[id] { scroll-margin-top: 76px; }
 .gender-row { display: flex; gap: 22px; margin-bottom: 16px; }
 .radio { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
 .radio input { accent-color: var(--primary); width: 18px; height: 18px; margin: 0; }
+
+/* ── Follow-up (sub question) ── */
+.follow-up { margin-top: 18px; padding: 16px; border-radius: 12px; background: var(--surface); border: 1px dashed var(--line-2); animation: fade 0.2s ease; }
+.follow-up h3 { font-size: 15px; margin: 0 0 12px; }
+.sum-row small { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+.sum-row small b { display: inline; font-size: 13px; color: var(--ink-2); }

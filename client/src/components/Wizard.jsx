@@ -1,4 +1,4 @@
-// The questionnaire pop-up. Steps: questions 0–14 → summary → login/register (if needed) → results page.
+// The questionnaire pop-up. Steps: questions (each with a follow-up) → summary → login/register (if needed) → results page.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, store } from '../lib/api.js';
@@ -98,12 +98,21 @@ function Field({ q, answers, onPick }) {
   );
 }
 
-const isAnswered = (q, a) => {
+// Which follow-up (sub question) applies to the current answer. Same rule as the server's followUpFor().
+function followUpFor(q, a) {
+  const v = a[q.id];
+  if (!q.followUp || v == null || (Array.isArray(v) && !v.length)) return null;
+  const key = Array.isArray(v) ? (v.includes('none') ? 'none' : '*') : typeof v === 'object' ? '*' : v;
+  return q.followUp[key] ?? q.followUp['*'] ?? null;
+}
+
+const mainAnswered = (q, a) => {
   const v = a[q.id];
   if (q.type === 'members') return ADULTS.some((k) => v?.[k]);
   if (q.type === 'ages') return ADULTS.filter((k) => a.members?.[k]).every((k) => v?.[k]);
   return Array.isArray(v) ? v.length > 0 : v != null;
 };
+const isAnswered = (q, a) => mainAnswered(q, a) && (!followUpFor(q, a) || a[followUpFor(q, a).id] != null);
 
 // Readable answer for the summary screen.
 function describe(q, a) {
@@ -115,6 +124,7 @@ function describe(q, a) {
   if (q.type === 'ages') return ADULTS.filter((k) => a.members?.[k]).map((k) => `${memberLabel(k, a.gender)} ${v?.[k]}`).join(', ');
   return [].concat(v).map((x) => q.options.find((o) => o.value === x)?.label).join(', ');
 }
+const describeFollowUp = (f, a) => f.options.find((o) => o.value === a[f.id])?.label;
 
 function WizardModal() {
   const navigate = useNavigate();
@@ -127,7 +137,12 @@ function WizardModal() {
   const timer = useRef();
 
   useEffect(() => {
-    api.questions().then(setQuestions).catch(() => setError('Could not reach the server.'));
+    api.questions()
+      .then((list) => {
+        setQuestions(list);
+        setStep((s) => Math.min(s, list.length)); // start(answers, 99) opens the summary
+      })
+      .catch(() => setError('Could not reach the server.'));
     const onKey = (e) => e.key === 'Escape' && close();
     window.addEventListener('keydown', onKey);
     return () => {
@@ -152,9 +167,21 @@ function WizardModal() {
   const pick = (value) => {
     setError('');
     setAnswers((a) => ({ ...a, [q.id]: value }));
-    if (q.type === 'single' || q.type === 'city') timer.current = setTimeout(advance, 250); // single choice moves on by itself
   };
+  // Answering the follow-up moves on by itself (except for multi-select, where you may still tick more).
+  const pickFollowUp = (f, value) => {
+    setError('');
+    setAnswers((a) => ({ ...a, [f.id]: value }));
+    if (q.type !== 'multi') timer.current = setTimeout(advance, 250);
+  };
+  const f = q && followUpFor(q, answers);
   const submit = async (justLoggedIn) => {
+    const missing = questions.findIndex((qq) => !isAnswered(qq, answers));
+    if (missing >= 0) {
+      setEditing(true);
+      setStep(missing);
+      return setError('Please answer this question (and its follow-up) to continue.');
+    }
     if (!user && !justLoggedIn) return setStep(AUTH);
     setBusy(true);
     try {
@@ -176,7 +203,25 @@ function WizardModal() {
   if (!questions || busy) {
     body = <div className="analysing"><div className="spinner" />{busy && <h2>Comparing plans for your family…</h2>}{error && <p className="err">{error}</p>}</div>;
   } else if (step < total) {
-    body = <><h2>{q.prompt}</h2><p className="help">{q.help}</p><Field q={q} answers={answers} onPick={pick} /></>;
+    body = (
+      <>
+        <h2>{q.prompt}</h2>
+        <p className="help">{q.help}</p>
+        <Field q={q} answers={answers} onPick={pick} />
+        {f && (
+          <div className="follow-up">
+            <h3>{f.prompt}</h3>
+            <div className="chips">
+              {f.options.map((o) => (
+                <button key={o.value} type="button" role="radio" aria-checked={answers[f.id] === o.value} className={`chip${answers[f.id] === o.value ? ' on' : ''}`} onClick={() => pickFollowUp(f, o.value)}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    );
     footer = (
       <>
         <button className="btn ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Back</button>
@@ -190,7 +235,11 @@ function WizardModal() {
         <p className="help">Check your answers before we compare plans.</p>
         {questions.map((qq, i) => (
           <div className="sum-row" key={qq.id}>
-            <div><span>{qq.id === 'gender' ? 'Your gender' : qq.prompt}</span><b>{describe(qq, answers)}</b></div>
+            <div>
+              <span>{qq.id === 'gender' ? 'Your gender' : qq.prompt}</span>
+              <b>{describe(qq, answers)}</b>
+              {followUpFor(qq, answers) && <small>{followUpFor(qq, answers).prompt} <b>{describeFollowUp(followUpFor(qq, answers), answers)}</b></small>}
+            </div>
             <button type="button" className="linkbtn" aria-label={`Edit: ${qq.prompt}`} onClick={() => { setEditing(true); setStep(i); }}>Edit</button>
           </div>
         ))}

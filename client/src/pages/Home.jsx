@@ -15,7 +15,7 @@ function QuoteCard() {
 
   const go = () => {
     if (!ADULTS.some((k) => members[k])) return setError('Select at least one adult to continue.');
-    start({ gender, members }, 2); // jump straight to the ages question
+    start({ gender, members }); // pre-filled; follow-ups are asked in the pop-up
   };
 
   return (
@@ -64,7 +64,7 @@ export default function Home() {
           <div>
             <span className="pill"><Shield size={16} /> Compare plans from India’s leading banks</span>
             <h1>Health insurance that fits <span>your family</span>, not a sales script.</h1>
-            <p className="sub">Tell us about your family in 15 quick questions. We compare every eligible plan and show you the best fits, with honest pros and cons.</p>
+            <p className="sub">Tell us about your family in 14 quick questions. We compare every eligible plan and show you the best fits, with honest pros and cons.</p>
             <ul className="benefits">
               <li><span className="ico"><Hospital /></span><span>Cashless treatment<small>at thousands of network hospitals</small></span></li>
               <li><span className="ico"><Clock /></span><span>Shorter waiting periods<small>for existing illnesses</small></span></li>
@@ -74,7 +74,7 @@ export default function Home() {
             <div className="facts">
               <div><b className="num">{banks.length || 8}</b><span>Partner banks</span></div>
               <div><b className="num">{planCount || 16}</b><span>Plans compared</span></div>
-              <div><b>15</b><span>Quick questions</span></div>
+              <div><b>14</b><span>Quick questions</span></div>
             </div>
           </div>
           <QuoteCard />

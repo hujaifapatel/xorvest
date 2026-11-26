@@ -1,6 +1,6 @@
 # Abrité: Health Insurance Comparison (MERN)
 
-A visitor answers 15 questions in a pop-up, logs in, and gets health plans from 8 banks ranked for their family. They can see why each plan fits, compare up to 3 plans, and save plans they're interested in.
+A visitor answers 14 questions (each with a follow-up) in a pop-up, logs in, and gets health plans from 8 banks ranked for their family. They can see why each plan fits, compare up to 3 plans, and save plans they're interested in.
 
 **Stack:** MongoDB (Atlas) · Express · React (Vite) · Node.js
 
@@ -23,15 +23,15 @@ JWT_SECRET=<any long random text>
 ## 1. How the website flows
 
 ```
-Home ──► Questionnaire pop-up (15 questions) ──► Summary of answers ──► Log in / Register ──► Results
+Home ──► Questionnaire pop-up (14 questions + follow-ups) ──► Summary of answers ──► Log in / Register ──► Results
                                                                                               │
                      My account ◄── "I'm interested" ◄────────────────────────────────────────┤
                                                                                               └──► Compare (up to 3)
 ```
 
 1. **Home** (`pages/Home.jsx`): the quote card lets you pick your gender and family members. **View plans** opens the pop-up at the ages question; **Get quotes** in the header opens it from question 1.
-2. **Questionnaire pop-up** (`components/Wizard.jsx`): one question at a time. Single-choice answers move on automatically. Answers are kept in `sessionStorage`, so a refresh doesn't lose them.
-3. **Summary:** after question 15 you see all your answers, each with an **Edit** button that jumps back to that question and then returns to the summary.
+2. **Questionnaire pop-up** (`components/Wizard.jsx`): one question at a time. Once a question is answered, its **follow-up** (sub question) appears underneath, and it can depend on the answer: tobacco "Yes" asks *how often?*, "No" asks *alcohol?*. Answering the follow-up moves to the next question. Answers are kept in `sessionStorage`, so a refresh doesn't lose them.
+3. **Summary:** after the last question you see all your answers and follow-ups, each with an **Edit** button that jumps back to that question and then returns to the summary.
 4. **Log in / Register** (`components/AuthForm.jsx`): shown only if you aren't logged in. Results are saved to your account, so login is required.
 5. **Results** (`pages/Results.jsx`): the recommended cover amount (and how it was calculated), then plan cards with match %, monthly price, key features, "Why this plan?" (reasons and drawbacks), **I'm interested**, and **Add to compare**. You can sort and filter to your budget.
 6. **Compare** (`pages/Compare.jsx`): a side-by-side table; ★ marks the best value in each row.
@@ -52,7 +52,7 @@ React (browser) ──HTTP /api/...──► Express (server/src/routes.js) ─�
 | `db.js` | Connects to Atlas; `seedCatalogue()` fills the banks and plans from `data.js` if they're missing |
 | `models.js` | The 5 MongoDB collections (below) |
 | `data.js` | The sample banks and plans |
-| `questions.js` | The 15 questions, plus a server-side check that the answers are valid |
+| `questions.js` | The 14 questions, their follow-ups (`followUp`, chosen by `followUpFor()`), and a server-side check that every question and follow-up is answered |
 | `engine.js` | The recommendation logic |
 | `auth.js` | Register, login, and the `requireAuth` guard |
 | `routes.js` | Every API endpoint |
@@ -93,10 +93,12 @@ When answers arrive at `POST /api/assessments`:
 2. **Recommended cover:** start from the city (₹10L metro, ₹7L large city, ₹5L other), add for family size, age 45+/60+ and existing illness, subtract half of any employer cover, cap by income, then round to a standard amount.
 3. **Eligibility:** drop plans that fail on entry age, are senior-only, cover individuals only, or refuse an illness the family has.
 4. **Price:** base rate × age factor × family size × cover size × city × loadings (tobacco, illness, co-pay), plus 18% GST.
-5. **Match %:** each factor (price vs budget, coverage, claims record, hospitals, room fit, co-pay, plus illness, maternity, OPD and restore when relevant) scores 0–1. The weighted average becomes 0–100, and the user's top priority counts double.
+5. **Match %:** each factor (price vs budget, coverage, claims record, hospitals, room fit, co-pay, plus illness, OPD, restore and check-up when relevant) scores 0–1. The weighted average becomes 0–100; the top priority counts double and the second priority ×1.4.
 6. **Explain:** produce plain-English reasons and drawbacks, with the user's own needs first.
 
 Results are sorted by match % and stored in `assessments`.
+
+**Follow-ups that change the ranking:** tobacco frequency (price loading), second priority, wanting a free check-up, preferring large hospitals (network weight), accepted co-pay share, and planned treatment (favours short waiting periods). The other follow-ups (occupation, same city, medical check-up, family history, alcohol, admission reason, earners, payment frequency, previous policy, home care, deductible, OPD reason) are saved with the answers for reference.
 
 ## 3. Frontend structure
 

@@ -12,9 +12,12 @@ const plans = PLANS.map((p) => {
 });
 
 const family = {
-  gender: 'male', members: { self: true, spouse: true, son: 1 }, ages: { self: 34, spouse: 31 }, city: 'mumbai',
-  conditions: ['none'], tobacco: 'no', hospitalised: 'no', maternity: 'yes', income: '10to25', budget: '2000',
-  employerCover: '0', room: 'single', copay: 'never', opd: 'nice', priority: 'coverage',
+  gender: 'male', occupation: 'salaried', members: { self: true, spouse: true, son: 1 }, sameCity: 'yes',
+  ages: { self: 34, spouse: 31 }, medicalCheck: 'normal', city: 'mumbai', hospitalPref: 'any',
+  conditions: ['none'], familyHistory: 'no', tobacco: 'no', alcohol: 'no', hospitalised: 'no', plannedTreatment: 'no',
+  income: '10to25', earners: 'two', budget: '2000', payFrequency: 'monthly', employerCover: '0', priorPolicy: 'never',
+  room: 'single', homeCare: 'no', copay: 'never', deductible: 'no', opd: 'no', healthCheckup: 'yes',
+  priority: 'coverage', secondPriority: 'premium',
 };
 
 test('valid answers pass; missing adults or ages fail', () => {
@@ -23,17 +26,28 @@ test('valid answers pass; missing adults or ages fail', () => {
   assert.ok(validateAnswers({ ...family, members: { ...family.members, father: true } }).some((e) => e.includes('father')));
 });
 
+test('follow-up depends on the answer and is required', () => {
+  assert.ok(validateAnswers({ ...family, tobacco: 'yes' }).some((e) => e.includes('How often')));
+  assert.deepEqual(validateAnswers({ ...family, tobacco: 'yes', tobaccoFrequency: 'daily' }), []);
+  assert.ok(validateAnswers({ ...family, conditions: ['diabetes'] }).some((e) => e.includes('diagnosed')));
+});
+
+test('daily tobacco costs more than none', () => {
+  const price = (a) => recommend(plans, a).results.find((r) => r.slug === 'hdfc-optimum-family').premium.monthly;
+  assert.ok(price({ ...family, tobacco: 'yes', tobaccoFrequency: 'daily' }) > price(family));
+});
+
 test('profile uses the eldest adult and the city tier', () => {
   const p = buildProfile({ ...family, members: { ...family.members, mother: true }, ages: { ...family.ages, mother: 61 } });
   assert.equal(p.eldestAge, 61);
   assert.equal(p.cityTier, 'metro');
 });
 
-test('young family: plans ranked, maternity plans near the top', () => {
+test('young family: plans ranked, check-up wish reflected in reasons', () => {
   const { results } = recommend(plans, family);
   assert.ok(results.length > 8);
   assert.ok(results[0].match >= results.at(-1).match);
-  assert.ok(results.slice(0, 3).some((r) => r.reasons.some((x) => x.startsWith('Maternity'))));
+  assert.ok(results.slice(0, 3).some((r) => r.reasons.some((x) => x.includes('health check-up'))));
 });
 
 test('ineligible plans are declined with a reason', () => {

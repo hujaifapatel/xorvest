@@ -1,4 +1,6 @@
 // Recommendation engine: answers → profile → cover → eligible plans → price → match score.
+// Follow-up answers used here: tobaccoFrequency, secondPriority, healthCheckup,
+// hospitalPref, copayShare, plannedTreatment. The others are stored for reference.
 import { ADULTS, cityTier } from './questions.js';
 
 const COVER_BANDS = [5, 7, 10, 15, 20, 25, 50, 100]; // lakh
@@ -25,16 +27,20 @@ export function buildProfile(a) {
     eldestAge: Math.max(...adults.map((k) => +a.ages[k])),
     cityTier: cityTier(a.city),
     conditions: (a.conditions || []).filter((c) => c !== 'none'),
-    tobacco: a.tobacco === 'yes',
+    tobacco: a.tobacco === 'yes' ? a.tobaccoFrequency : null, // daily | occasional | quit
     hospitalised: a.hospitalised,
-    maternity: a.maternity,
+    plannedTreatment: a.plannedTreatment === 'yes',
     income: a.income,
     budgetMonthly: +a.budget,
     employerCover: +a.employerCover || 0,
     room: a.room,
     copay: a.copay,
+    copayShare: +a.copayShare || 0,
     opd: a.opd,
+    wantsCheckup: a.healthCheckup === 'yes',
+    hospitalPref: a.hospitalPref,
     priority: a.priority,
+    secondPriority: a.secondPriority,
   };
 }
 
@@ -79,7 +85,7 @@ function estimatePremium(plan, p, cover) {
   const family = 1 + 0.35 * (p.adults - 1) + 0.15 * p.children;
   const size = (cover / 5) ** 0.45;
   const city = { metro: 1, tier1: 0.9, tier2: 0.8 }[p.cityTier];
-  const loading = (p.tobacco ? 1.1 : 1) * (1 + 0.07 * p.conditions.length) * (copayApplies(plan, p) ? 1 - plan.copayPct / 100 : 1);
+  const loading = ({ daily: 1.15, occasional: 1.1, quit: 1.05 }[p.tobacco] || 1) * (1 + 0.07 * p.conditions.length) * (copayApplies(plan, p) ? 1 - plan.copayPct / 100 : 1);
   const annual = Math.round(plan.baseRate * age * family * size * city * loading * 1.18);
   return { annual, monthly: Math.round(annual / 12) };
 }
@@ -97,19 +103,20 @@ function matchScore(plan, p, price) {
     claims: 0.65 * clamp((plan.claimSettlementRatio - 85) / 15) + 0.35 * clamp(1 - (plan.claimTatDays - 3) / 25),
     network: clamp(plan.networkHospitals / 14000),
     room: ROOM_FIT[p.room][plan.roomRent],
-    copay: copayApplies(plan, p) ? (p.copay === 'never' ? 0 : 0.7) : 1,
+    copay: !copayApplies(plan, p) ? 1 : p.copay === 'never' ? 0 : plan.copayPct <= p.copayShare ? 0.8 : 0.3,
   };
   const w = { price: 0.22, coverage: 0.2, claims: 0.17, network: 0.1, room: 0.07, copay: p.copay === 'never' ? 0.1 : 0.06 };
 
   // Extra factors only when the answers make them relevant.
-  if (p.conditions.length) {
+  if (p.conditions.length || p.plannedTreatment) {
     s.illness = clamp(1 - (plan.pedWaitingYears - 1) * 0.25 + (plan.pedReductionRider ? 0.15 : 0));
     w.illness = 0.16;
   }
-  if (p.maternity !== 'no') {
-    s.maternity = plan.maternity?.covered ? clamp(1 - (plan.maternity.waitingYears - 1) * 0.25) : 0;
-    w.maternity = p.maternity === 'yes' ? 0.12 : 0.05;
+  if (p.wantsCheckup) {
+    s.checkup = plan.healthCheckup ? 1 : 0;
+    w.checkup = 0.05;
   }
+  if (p.hospitalPref === 'chain') w.network *= 1.5;
   if (p.opd !== 'no') {
     s.opd = plan.opd?.covered ? 1 : 0;
     w.opd = p.opd === 'essential' ? 0.09 : 0.03;
@@ -118,7 +125,9 @@ function matchScore(plan, p, price) {
     s.restore = { unlimited: 1, once: 0.6, none: 0 }[plan.restore];
     w.restore = p.hospitalised === 'multiple' ? 0.08 : 0.04;
   }
-  w[{ premium: 'price', coverage: 'coverage', claims: 'claims', network: 'network' }[p.priority]] *= 2; // user's top priority counts double
+  const dim = { premium: 'price', coverage: 'coverage', claims: 'claims', network: 'network' };
+  w[dim[p.priority]] *= 2; // top priority counts double
+  if (p.secondPriority && p.secondPriority !== p.priority) w[dim[p.secondPriority]] *= 1.4;
 
   const total = Object.values(w).reduce((a, b) => a + b, 0);
   return Math.round((100 * Object.keys(w).reduce((sum, k) => sum + s[k] * w[k], 0)) / total);
@@ -133,14 +142,14 @@ function explain(plan, p, price) {
   if (price.monthly <= p.budgetMonthly) good.push(`Within your budget at ${rupees(price.monthly)} a month.`);
   else bad.push(`About ${rupees(price.monthly - p.budgetMonthly)} a month over your budget.`);
   if (ill) (plan.pedWaitingYears <= 2 ? good : bad).push(`Existing ${ill} covered after ${plan.pedWaitingYears} year${plan.pedWaitingYears > 1 ? 's' : ''}.`);
-  if (p.maternity !== 'no' && plan.maternity?.covered) good.push(`Maternity cover up to ${rupees(plan.maternity.limit)} after ${plan.maternity.waitingYears} years.`);
-  if (p.maternity === 'yes' && !plan.maternity?.covered) bad.push('No maternity cover.');
+  if (p.plannedTreatment && plan.pedWaitingYears > 2) bad.push(`Long waiting period (${plan.pedWaitingYears} years) for your planned treatment.`);
   if (p.opd !== 'no' && plan.opd?.covered) good.push(`Doctor consultations covered up to ${rupees(plan.opd.limit)} a year.`);
   if (p.opd === 'essential' && !plan.opd?.covered) bad.push('No OPD / consultation cover.');
   if (copayApplies(plan, p)) bad.push(`You pay ${plan.copayPct}% of every claim (co-pay).`);
   if (plan.roomRent === 'no-limit') good.push('No room rent limit: choose any room.');
   if (plan.roomRent === '1pct') bad.push('Room rent capped at 1% of cover per day.');
   if (plan.roomRent === 'shared') bad.push('Covers a shared room only.');
+  if (p.wantsCheckup && plan.healthCheckup) good.push('Free yearly health check-up included.');
   if (plan.restore === 'unlimited' && p.hospitalised !== 'no') good.push('Cover refills in full after every claim.');
   if (plan.claimSettlementRatio >= 97) good.push(`${plan.bankShort} settles ${plan.claimSettlementRatio}% of claims.`);
   return { reasons: good.slice(0, 4), caveats: bad.slice(0, 3) };
