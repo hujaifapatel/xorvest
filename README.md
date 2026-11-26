@@ -1,45 +1,62 @@
-# Xorvest: Health Assurance Counsel
+# Prchesh: Health Insurance Comparison (MERN)
 
-A MERN-stack health-insurance advisory site. Visitors answer a 14-question consultation; the server scores every plan in the register against their answers and returns a ranked shortlist with reasons, caveats, a recommended sum insured and a side-by-side comparison of up to three plans.
+A MERN-stack health-insurance comparison site. Visitors answer a 15-question questionnaire in a pop-up, register or log in, and get a ranked list of plans from partner banks (HDFC Bank, SBI, ICICI Bank, Axis Bank, Kotak Mahindra Bank, Yes Bank, Bank of Baroda, PNB), with reasons, caveats, a recommended cover amount, filters, and a side-by-side comparison.
+
+The site name lives in `client/src/brand.js`. Use a name you own, not that of an existing insurer.
 
 ## Stack
 
 | Layer    | Choice |
 |----------|--------|
-| Database | **MongoDB** via Mongoose. Plans are nested, uneven documents (maternity terms, restore rules, declined conditions), and each consultation is stored as one answers + results document. |
-| API      | Express (Node 20+, ES modules) |
-| Client   | React 18 + React Router, built with Vite; hand-written CSS (no UI kit) |
+| Database | **MongoDB** (Atlas) via Mongoose: `banks`, `plans` (ref → bank), `users`, `assessments` (ref → user) |
+| API      | Express, JWT auth (bcrypt-hashed passwords) |
+| Client   | React 18 + React Router, built with Vite; hand-written CSS |
 
 ## Running locally
 
 ```bash
-npm install                 # root (concurrently)
-npm run install:all         # server + client
-npm run dev                 # API on :5050, site on :5173
+npm run install:all
+npm run dev            # API :5050, site :5173
 ```
 
-Without `MONGODB_URI` the API starts an **in-memory MongoDB** (via `mongodb-memory-server`) and seeds it on every start. To use a real database, copy `server/.env.example` to `server/.env`, set `MONGODB_URI`, and run `npm run seed`.
+`server/.env` (git-ignored) needs:
 
-`npm test` runs the scoring-engine tests.
+```
+MONGODB_URI=mongodb+srv://<user>:<password>@<cluster-host>/xorvest?retryWrites=true&w=majority&appName=Xorvest
+JWT_SECRET=<long random string>
+PORT=5050
+CLIENT_ORIGIN=http://localhost:5173
+```
 
-## How the recommendation works (`server/src/engine/score.js`)
+Without `MONGODB_URI` the API uses an in-memory MongoDB. Banks and plans are seeded automatically when the catalogue is missing or outdated; `npm run seed` forces a re-seed. `npm test` runs the engine and validation tests.
 
-1. **Profile**: answers become a household profile: adults, children, eldest age, city zone, conditions, budget, and preferences.
-2. **Sum insured**: a city-based figure, raised for family size, age 45+/60+, pre-existing conditions and frequent admissions, with half of any employer cover credited, capped by income, then rounded up to a standard band.
-3. **Eligibility**: plans are excluded for entry age, individual-only plans on families, senior plans for young households, and conditions the insurer declines.
-4. **Premium estimate**: base rate × age band × family size × sum insured^0.55 × city zone × tobacco/PED loading × co-pay discount, plus 18% GST.
-5. **Scoring**: up to eleven dimensions (affordability, coverage breadth, claims record, network, PED waiting, maternity, room-rent fit, co-pay, OPD, restore), each 0–1. Weights switch on only when the answers make them relevant, and the visitor's stated priority is boosted ×1.9.
-6. **Explanation**: each plan returns plain-language reasons and caveats.
+## Flow
+
+1. **Questionnaire pop-up** (`client/src/components/Wizard.jsx`): gender → members (self, spouse, sons, daughters, father, mother) → age of each adult → city → existing illness → tobacco → admissions → maternity → income → budget → employer cover → room → co-pay → OPD → priority. It can be started from the home-page quote card with members pre-filled.
+2. **Register / log in**: shown as the last step if the visitor is signed out. Results and history require an account.
+3. **Results** (`/plans/:id`): recommended cover, plan cards with match %, monthly premium, highlights, "why this plan", filters (bank, within budget, sort) and a compare tray.
+4. **Compare** (`/compare`), **All plans** (`/all-plans`), **My recommendations** (`/account`).
 
 ## API
 
-| Method | Path | |
+| Method | Path | Auth |
 |---|---|---|
-| GET | `/api/questions` | Chapters and questions (the single source for the wizard) |
-| GET | `/api/plans?slugs=a,b` | The plan register, optionally filtered |
-| POST | `/api/assessments` | `{ answers }` → validated, scored, stored; returns ranked results |
-| GET | `/api/assessments/:id` | A stored recommendation |
+| POST | `/api/auth/register`, `/api/auth/login` | – |
+| GET | `/api/auth/me` | ✓ |
+| GET | `/api/questions`, `/api/banks`, `/api/plans?slugs=&bank=` | – |
+| POST | `/api/assessments` `{ answers }` | ✓ |
+| GET | `/api/assessments`, `/api/assessments/:id` (own only) | ✓ |
+
+## Recommendation engine (`server/src/engine/score.js`)
+
+The profile (adults, children, eldest age, city tier, conditions, budget, preferences) leads to:
+
+1. **Recommended cover:** sized by city, family size, age and health, then rounded to the nearest standard band.
+2. **Eligibility:** checks entry age, floater availability, senior-only plans, and conditions a plan declines.
+3. **Estimated premium:** age band × family × cover × city × loadings, plus 18% GST.
+4. **Match score:** a weighted score across affordability, coverage, claims, network, existing-illness waiting period, maternity, room rent, co-pay, OPD and restore. The visitor's priority is boosted.
+5. **Explanation:** reasons and caveats, with the user's own needs listed first.
 
 ## Data notice
 
-The insurers and figures in `server/src/seed/plans.js` are **fictional** and exist only to exercise the engine. Replace them with licensed insurer data before any public use. Selling or advising on insurance in India requires IRDAI registration.
+Bank service metrics, plan names, premiums and benefits in `server/src/seed/` are **sample data** for demonstration and are not offers from the banks named. Replace them with licensed data before public use; selling or advising on insurance in India requires IRDAI registration.

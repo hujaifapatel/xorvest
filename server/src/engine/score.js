@@ -1,3 +1,5 @@
+import { ADULT_MEMBERS, cityTier } from './questions.js';
+
 // Recommendation engine: turns wizard answers into a household profile,
 // a suggested sum insured, an estimated premium per plan, and a weighted
 // match score with plain-language reasons and caveats.
@@ -22,16 +24,19 @@ const clamp = (n, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, n));
 
 export function buildProfile(answers) {
   const m = answers.members || {};
-  const adults = 1 + (m.spouse ? 1 : 0) + Number(m.parents || 0);
-  const children = Number(m.children || 0);
+  const ages = answers.ages || {};
+  const adultsPresent = ADULT_MEMBERS.filter((k) => m[k]);
+  const adults = adultsPresent.length;
+  const children = Number(m.son || 0) + Number(m.daughter || 0);
   const conditions = (answers.conditions || []).filter((c) => c !== 'none');
 
   return {
     adults,
     children,
     lives: adults + children,
-    eldestAge: Number(answers.eldestAge),
-    cityTier: answers.cityTier,
+    eldestAge: Math.max(...adultsPresent.map((k) => Number(ages[k]))),
+    city: answers.city,
+    cityTier: cityTier(answers.city) || 'tier2',
     conditions,
     tobacco: answers.tobacco === 'yes',
     hospitalised: answers.hospitalised,
@@ -58,15 +63,16 @@ export function recommendSumInsured(p) {
 
   const cap = INCOME_SI_CAP[p.income] ?? 100;
   si = clamp(si, 5, cap);
-  const step = SI_STEPS.find((s) => s >= si) ?? SI_STEPS[SI_STEPS.length - 1];
+  // Nearest standard band (ties round up), so 34 lakh suggests 25 rather than jumping to 50.
+  const step = SI_STEPS.reduce((best, s) => (Math.abs(s - si) <= Math.abs(best - si) ? s : best), SI_STEPS[0]);
 
   const reasons = [
-    `${p.cityTier === 'metro' ? 'Metropolitan' : p.cityTier === 'tier1' ? 'Large-city' : 'Smaller-city'} hospital costs set a base of ₹${base} lakh.`,
+    `Hospital costs in ${p.cityTier === 'metro' ? 'metro cities' : p.cityTier === 'tier1' ? 'large cities' : 'your city'} start us at ₹${base} lakh.`,
   ];
-  if (p.lives > 1) reasons.push(`Raised for ${p.lives} people sharing one floater.`);
-  if (p.eldestAge >= 45) reasons.push(`Raised because the eldest member is ${p.eldestAge}.`);
-  if (p.conditions.length) reasons.push('Raised to allow for pre-existing conditions.');
-  if (p.employerCover) reasons.push(`Reduced slightly to credit existing employer cover.`);
+  if (p.lives > 1) reasons.push(`Increased for ${p.lives} members sharing one floater.`);
+  if (p.eldestAge >= 45) reasons.push(`Increased because the eldest member is ${p.eldestAge}.`);
+  if (p.conditions.length) reasons.push('Increased to allow for existing illnesses.');
+  if (p.employerCover) reasons.push(`Reduced slightly for your employer cover.`);
   return { sumInsured: step, reasons };
 }
 
@@ -86,8 +92,8 @@ export function pickSumInsured(plan, target) {
 }
 
 export function estimatePremium(plan, p, sumInsured) {
-  const family = 1 + 0.45 * (p.adults - 1) + 0.22 * p.children;
-  const si = Math.pow(sumInsured / 5, 0.55);
+  const family = 1 + 0.35 * (p.adults - 1) + 0.15 * p.children;
+  const si = Math.pow(sumInsured / 5, 0.45);
   const zone = ZONE_FACTOR[p.cityTier] ?? 1;
   const tobacco = p.tobacco ? 1.1 : 1;
   const ped = 1 + 0.07 * p.conditions.length;
@@ -190,37 +196,48 @@ export function weightsFor(p) {
 }
 
 function explain(plan, p, premium, scores) {
-  const reasons = [];
+  const reasons = []; // answers something the user asked for
+  const generic = []; // good to know, shown if there is room
   const caveats = [];
 
-  if (premium.monthly <= p.budgetMonthly) reasons.push(`Sits within your budget at about ${rupees(premium.monthly)} a month.`);
+  if (premium.monthly <= p.budgetMonthly) reasons.push(`Within your budget at about ${rupees(premium.monthly)} a month.`);
   else caveats.push(`Exceeds your stated budget by about ${rupees(premium.monthly - p.budgetMonthly)} a month.`);
 
-  if (plan.roomRent === 'no-limit') reasons.push('No limit on room rent; any room may be chosen.');
-  else if (plan.roomRent === '1pct') caveats.push('Room rent capped at 1% of the sum insured per day; the whole bill is pro-rated above it.');
+  if (plan.roomRent === 'no-limit') (p.room === 'any' ? reasons : generic).push('No room rent limit: choose any room.');
+  else if (plan.roomRent === '1pct') caveats.push('Room rent capped at 1% of cover per day; bigger rooms reduce the whole claim.');
   else if (plan.roomRent === 'shared') caveats.push('Covers a shared room only.');
 
-  if (plan.claimSettlementRatio >= 97) reasons.push(`Settles ${plan.claimSettlementRatio}% of claims, among the best on our register.`);
-  if (plan.networkHospitals >= 11000) reasons.push(`Cashless at ${plan.networkHospitals.toLocaleString('en-IN')} hospitals.`);
+  if (plan.claimSettlementRatio >= 97) (p.priority === 'claims' ? reasons : generic).push(`${plan.bankShort} settles ${plan.claimSettlementRatio}% of claims, one of the best here.`);
+  if (plan.networkHospitals >= 11000) (p.priority === 'network' ? reasons : generic).push(`Cashless at ${plan.networkHospitals.toLocaleString('en-IN')} hospitals.`);
 
   if (p.conditions.length) {
     const named = p.conditions.map((c) => CONDITION_LABEL[c]).join(', ');
-    if (plan.pedWaitingYears <= 1) reasons.push(`Pre-existing ${named} covered after just ${plan.pedWaitingYears} year.`);
-    else caveats.push(`Pre-existing ${named} covered only after ${plan.pedWaitingYears} years${plan.pedReductionRider ? ' (a rider can shorten this)' : ''}.`);
+    if (plan.pedWaitingYears <= 1) reasons.push(`Existing ${named} covered after just ${plan.pedWaitingYears} year.`);
+    else caveats.push(`Existing ${named} covered only after ${plan.pedWaitingYears} years${plan.pedReductionRider ? ' (a rider can shorten this)' : ''}.`);
   }
 
-  if (copayApplies(plan, p)) caveats.push(`You would bear ${plan.copayPct}% of every claim.`);
+  if (copayApplies(plan, p)) caveats.push(`You pay ${plan.copayPct}% of every claim (co-pay).`);
   if (p.maternity !== 'no') {
     if (plan.maternity?.covered) reasons.push(`Maternity cover up to ${rupees(plan.maternity.limit)} after ${plan.maternity.waitingYears} years.`);
     else if (p.maternity === 'yes') caveats.push('Does not cover maternity.');
   }
   if (p.opd !== 'no') {
-    if (plan.opd?.covered) reasons.push(`Outpatient consultations covered up to ${rupees(plan.opd.limit)} a year.`);
-    else if (p.opd === 'essential') caveats.push('No outpatient cover.');
+    if (plan.opd?.covered) reasons.push(`Doctor consultations covered up to ${rupees(plan.opd.limit)} a year.`);
+    else if (p.opd === 'essential') caveats.push('No OPD / consultation cover.');
   }
-  if (plan.restore === 'unlimited' && p.hospitalised !== 'no') reasons.push('Sum insured restores in full, without limit, after a claim.');
+  if (plan.restore === 'unlimited' && p.hospitalised !== 'no') reasons.push('Cover refills in full after every claim.');
 
-  return { reasons: reasons.slice(0, 4), caveats: caveats.slice(0, 3) };
+  return { reasons: [...reasons, ...generic].slice(0, 4), caveats: caveats.slice(0, 3) };
+}
+
+function highlights(plan) {
+  const h = [];
+  h.push(plan.roomRent === 'no-limit' ? 'No room rent limit' : plan.roomRent === 'single-private' ? 'Single private room' : plan.roomRent === 'shared' ? 'Shared room' : 'Room rent 1% of cover');
+  h.push(`Existing illness covered after ${plan.pedWaitingYears} yr${plan.pedWaitingYears > 1 ? 's' : ''}`);
+  if (plan.restore !== 'none') h.push(plan.restore === 'unlimited' ? 'Unlimited restore of cover' : 'Cover restored once a year');
+  h.push(`${plan.claimSettlementRatio}% claims settled`);
+  if (plan.copayPct) h.push(`${plan.copayPct}% co-pay${plan.copayFromAge ? ` from age ${plan.copayFromAge}` : ''}`);
+  return h;
 }
 
 export function recommend(plans, answers) {
@@ -236,7 +253,7 @@ export function recommend(plans, answers) {
   for (const plan of plans) {
     const ineligible = checkEligibility(plan, profile);
     if (ineligible.length) {
-      declined.push({ slug: plan.slug, insurer: plan.insurer, name: plan.name, reasons: ineligible });
+      declined.push({ slug: plan.slug, insurer: plan.insurer, bankShort: plan.bankShort, name: plan.name, reasons: ineligible });
       continue;
     }
     const sumInsured = pickSumInsured(plan, si.sumInsured);
@@ -251,8 +268,13 @@ export function recommend(plans, answers) {
     results.push({
       slug: plan.slug,
       insurer: plan.insurer,
+      bank: plan.bank,
+      bankShort: plan.bankShort,
+      monogram: plan.monogram,
+      tint: plan.tint,
       name: plan.name,
       category: plan.category,
+      highlights: highlights(plan),
       sumInsured,
       premium,
       match: Math.round(total * 100),

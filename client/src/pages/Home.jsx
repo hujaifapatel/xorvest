@@ -1,102 +1,145 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../lib/api.js';
+import { useWizard, MemberTiles } from '../components/Wizard.jsx';
+import BankMono from '../components/BankMono.jsx';
+import { Shield, Hospital, Clock, Wallet, Arrow } from '../components/Icons.jsx';
 
-export function Ornament() {
+const ADULTS = ['self', 'spouse', 'father', 'mother'];
+
+function QuoteCard() {
+  const { start, answers } = useWizard();
+  const [gender, setGender] = useState(answers.gender || 'male');
+  const [members, setMembers] = useState(answers.members);
+  const [error, setError] = useState('');
+
+  const go = () => {
+    if (!ADULTS.some((k) => members[k])) return setError('Select at least one adult to continue.');
+    start({ prefill: { gender, members }, at: 2 });
+  };
+
   return (
-    <svg className="ornament" viewBox="0 0 120 14" aria-hidden="true">
-      <line x1="0" y1="7" x2="48" y2="7" stroke="currentColor" strokeWidth="0.8" />
-      <line x1="72" y1="7" x2="120" y2="7" stroke="currentColor" strokeWidth="0.8" />
-      <path d="M60 1 L66 7 L60 13 L54 7 Z" fill="none" stroke="currentColor" strokeWidth="0.8" />
-      <circle cx="60" cy="7" r="1.4" fill="currentColor" />
-      <circle cx="51" cy="7" r="0.9" fill="currentColor" />
-      <circle cx="69" cy="7" r="0.9" fill="currentColor" />
-    </svg>
+    <div className="quote-card">
+      <h2>Your health matters. <em>Get insured today.</em></h2>
+      <p className="lead">Answer a few quick questions and compare plans from 8 banks.</p>
+      <div className="gender-row" role="radiogroup" aria-label="Your gender">
+        {['male', 'female'].map((g) => (
+          <label className="radio" key={g}>
+            <input type="radio" name="gender" checked={gender === g} onChange={() => setGender(g)} />
+            {g === 'male' ? 'Male' : 'Female'}
+          </label>
+        ))}
+      </div>
+      <p style={{ fontWeight: 700, fontSize: 14, margin: '0 0 10px' }}>Select members you want to insure</p>
+      <MemberTiles gender={gender} value={members} onChange={(m) => { setMembers(m); setError(''); }} />
+      {error && <p className="err">{error}</p>}
+      <button className="btn accent block" style={{ marginTop: 18, height: 52, fontSize: 16 }} onClick={go}>
+        View plans <Arrow />
+      </button>
+      <p className="fineprint-sm">Takes about 2 minutes · No spam calls</p>
+    </div>
   );
 }
 
-function Seal() {
-  return (
-    <svg className="seal" viewBox="0 0 72 72" aria-hidden="true">
-      <circle cx="36" cy="36" r="33" fill="#6a1f22" />
-      <circle cx="36" cy="36" r="27" fill="none" stroke="#e7cfb8" strokeWidth="0.6" strokeDasharray="1.5 2.2" />
-      <circle cx="36" cy="36" r="22" fill="none" stroke="#e7cfb8" strokeWidth="0.6" />
-      <text x="36" y="44" textAnchor="middle" fontFamily="Cormorant Garamond, Georgia, serif" fontSize="24" fill="#f0dcc4" fontStyle="italic">X</text>
-    </svg>
-  );
-}
+const FAQ = [
+  ['How do you choose which plans to recommend?', 'We check which plans your family is eligible for, estimate the premium for your ages and city, and score each plan on price, coverage, claim record, hospital network and the things you told us matter most. Every recommendation shows its reasons and its drawbacks.'],
+  ['What sum insured do I need?', 'It depends on your city, family size, ages and health. We suggest a figure at the top of your results and explain how we arrived at it. Metro families usually need at least ₹10 lakh.'],
+  ['Will my existing illness be covered?', 'Yes, after a waiting period, usually 1 to 4 years depending on the plan. Tell us about existing conditions and we will favour plans with shorter waiting periods.'],
+  ['Why do I need to register?', 'Your account keeps your recommendations so you can come back, compare plans again, or share them with family. We never sell your details.'],
+  ['Is my employer’s cover enough?', 'Office cover ends when you change or leave your job, and is often too small for a family. A personal plan keeps you covered either way.'],
+];
 
 export default function Home() {
+  const { start } = useWizard();
+  const [banks, setBanks] = useState([]);
+  useEffect(() => {
+    api.banks().then(setBanks).catch(() => setBanks([]));
+  }, []);
+  const planCount = banks.reduce((n, b) => n + b.plans, 0);
+
   return (
     <>
-      <section className="wrap hero">
-        <div>
-          <div className="eyebrow">Health assurance, considered</div>
-          <h1 style={{ marginTop: 14 }}>
-            Sound counsel on the matter of your family’s <em>health</em>.
-          </h1>
-          <p className="lede">
-            Most people choose health insurance in a hurry, often from whoever calls first. We would rather you chose it once,
-            and chose it well. Answer fourteen questions about your household and we will set out which policies suit
-            you, which do not, and why, in plain terms.
-          </p>
-          <div className="hero-cta">
-            <Link className="btn" to="/consultation">
-              Begin the consultation <span className="arrow">→</span>
-            </Link>
-            <span className="aside">About six minutes. No telephone number required.</span>
+      <section className="hero">
+        <div className="wrap">
+          <div>
+            <span className="pill"><Shield size={16} /> Compare plans from India’s leading banks</span>
+            <h1>Health insurance that fits <span>your family</span>, not a sales script.</h1>
+            <p className="sub">Tell us about your family in 15 quick questions. We compare every eligible plan and show you the best fits, with honest pros and cons.</p>
+            <ul className="benefits">
+              <li><span className="ico"><Hospital /></span><span>Cashless treatment<small>at thousands of network hospitals</small></span></li>
+              <li><span className="ico"><Clock /></span><span>Shorter waiting periods<small>for existing illnesses</small></span></li>
+              <li><span className="ico"><Wallet /></span><span>Monthly premium view<small>matched to your budget</small></span></li>
+              <li><span className="ico"><Shield /></span><span>Claim records shown<small>before you choose</small></span></li>
+            </ul>
+            <div className="facts">
+              <div><b className="num">{banks.length || 8}</b><span>Partner banks</span></div>
+              <div><b className="num">{planCount || 16}</b><span>Plans compared</span></div>
+              <div><b>15</b><span>Quick questions</span></div>
+            </div>
           </div>
+          <QuoteCard />
         </div>
-
-        <aside className="letter">
-          <Seal />
-          <div className="eyebrow">What you will receive</div>
-          <h2>A written recommendation, prepared for your household alone.</h2>
-          <ol>
-            <li><span>The sum insured we judge prudent, and how we arrived at it.</span></li>
-            <li><span>A shortlist of policies ranked against your own priorities.</span></li>
-            <li><span>An honest note of each policy’s limits, waiting periods and co-payments.</span></li>
-            <li><span>A side-by-side comparison of any three you care to examine.</span></li>
-          </ol>
-          <div className="sign">— with our compliments</div>
-        </aside>
       </section>
 
-      <section className="wrap method" id="method">
-        <div className="section-head">
-          <h2>Our Method</h2>
-          <hr className="rule" />
-        </div>
-        <div className="three">
-          <div>
-            <div className="numeral">I.</div>
-            <h3>We ask, and we listen</h3>
-            <p>
-              Fourteen questions, in four short chapters: the household, its health, its means and its preferences.
-              Nothing is asked that does not bear on the advice.
-            </p>
+      <section className="section" id="banks">
+        <div className="wrap">
+          <div className="section-title">
+            <div className="eyebrow">Partner banks</div>
+            <h2>Plans from banks you already trust</h2>
+            <p>Compare health plans distributed by India’s largest public and private sector banks.</p>
           </div>
-          <div>
-            <div className="numeral">II.</div>
-            <h3>We weigh every policy</h3>
-            <p>
-              Each plan in our register is tested for eligibility, priced for your household and city, and scored on
-              cost, breadth of cover, claims record and hospital network, weighted as you would weigh them.
-            </p>
-          </div>
-          <div>
-            <div className="numeral">III.</div>
-            <h3>We say so plainly</h3>
-            <p>
-              Each recommendation comes with its reasons and its drawbacks. Where a policy falls short of what you
-              asked, we say so.
-            </p>
+          <div className="bank-grid">
+            {banks.map((b) => (
+              <Link className="bank-card" key={b.slug} to={`/all-plans?bank=${b.slug}`}>
+                <BankMono monogram={b.monogram} tint={b.tint} />
+                <span>
+                  <b>{b.name}</b>
+                  <span>{b.plans} plan{b.plans === 1 ? '' : 's'} · {b.claimSettlementRatio}% claims settled</span>
+                </span>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="wrap maxim">
-        <Ornament />
-        <blockquote>Prudence is never so inexpensive as when it is purchased early.</blockquote>
-        <cite className="smallcaps">A maxim of the house</cite>
+      <section className="section alt" id="how">
+        <div className="wrap">
+          <div className="section-title">
+            <div className="eyebrow">How it works</div>
+            <h2>The right plan in three steps</h2>
+          </div>
+          <div className="steps">
+            <div className="step"><h3>Tell us about your family</h3><p>Members, ages, city, health and budget. 15 questions, about two minutes.</p></div>
+            <div className="step"><h3>We compare every plan</h3><p>Eligibility, estimated premium and a match score for each plan, weighted by what matters to you.</p></div>
+            <div className="step"><h3>Pick with confidence</h3><p>See why each plan fits, what it doesn’t cover, and compare up to three side by side.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section" id="faq">
+        <div className="wrap">
+          <div className="section-title">
+            <div className="eyebrow">Questions</div>
+            <h2>Frequently asked questions</h2>
+          </div>
+          <div className="faq">
+            {FAQ.map(([q, a]) => (
+              <details key={q}><summary>{q}</summary><p>{a}</p></details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="section" style={{ paddingTop: 0 }}>
+        <div className="wrap">
+          <div className="cta-band">
+            <div>
+              <h2>Ready to find your plan?</h2>
+              <p>Get a personalised comparison in about two minutes.</p>
+            </div>
+            <button className="btn accent" onClick={() => start()} style={{ height: 52 }}>Start now <Arrow /></button>
+          </div>
+        </div>
       </section>
     </>
   );

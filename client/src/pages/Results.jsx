@@ -1,185 +1,191 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api, store } from '../lib/api.js';
-import { rupees, cover, roman, inWords } from '../lib/format.js';
+import { rupees, cover, memberLabel, PRIORITY } from '../lib/format.js';
+import { useWizard } from '../components/Wizard.jsx';
+import BankMono from '../components/BankMono.jsx';
+import { Check } from '../components/Icons.jsx';
 
-const MAX_COMPARE = 3;
-const PRIORITY = {
-  premium: 'a modest premium',
-  coverage: 'breadth of cover',
-  claims: 'a dependable claims record',
-  network: 'a wide cashless network',
+const MAX = 3;
+const SORTS = {
+  match: { label: 'Best match', fn: (a, b) => b.match - a.match },
+  price: { label: 'Lowest premium', fn: (a, b) => a.premium.monthly - b.premium.monthly },
+  claims: { label: 'Best claim record', fn: (a, b) => (b.scores.claims ?? 0) - (a.scores.claims ?? 0) },
 };
 
-function householdPhrase(p) {
-  if (p.lives === 1) return 'yourself alone';
-  const bits = [];
-  if (p.adults > 1) bits.push(`${inWords(p.adults)} adults`);
-  if (p.children) bits.push(`${inWords(p.children)} ${p.children === 1 ? 'child' : 'children'}`);
-  return bits.join(' and ');
-}
-
-function CompareBox({ slug, name, selected, toggle }) {
-  const checked = selected.includes(slug);
+function PlanCard({ r, best, selected, toggle }) {
+  const [open, setOpen] = useState(false);
+  const checked = selected.includes(r.slug);
   return (
-    <label className="check">
-      <input type="checkbox" aria-label={`Compare ${name}`} checked={checked} disabled={!checked && selected.length >= MAX_COMPARE} onChange={() => toggle(slug)} />
-      Compare
-    </label>
+    <article className={`plan${best ? ' best' : ''}`}>
+      {best && <span className="ribbon">Best match for you</span>}
+      <div className="plan-main">
+        <div className="plan-id">
+          <BankMono monogram={r.monogram} tint={r.tint} size="lg" />
+          <div>
+            <div className="bank">{r.insurer}</div>
+            <h3>{r.name}</h3>
+            <span className={`match-pill${r.match < 65 ? ' mid' : ''}`}>{r.match}% match</span>
+          </div>
+        </div>
+        <ul className="feats">
+          {r.highlights.slice(0, 4).map((h) => (
+            <li key={h}><Check />{h}</li>
+          ))}
+        </ul>
+        <div className="price">
+          <div className="cover">Cover <b>{cover(r.sumInsured)}</b></div>
+          <button className="btn accent" type="button" onClick={() => setOpen(true)}>
+            {rupees(r.premium.monthly)}<small>/month</small>
+          </button>
+          <div className="yr num">{rupees(r.premium.annual)} annually incl. GST</div>
+        </div>
+      </div>
+      {open && (
+        <div className="plan-why">
+          <div className="good">
+            <h4>Why it fits</h4>
+            <ul>{r.reasons.length ? r.reasons.map((x) => <li key={x}>{x}</li>) : <li>Meets your basic requirements.</li>}</ul>
+          </div>
+          <div className="bad">
+            <h4>Keep in mind</h4>
+            <ul>{r.caveats.length ? r.caveats.map((x) => <li key={x}>{x}</li>) : <li>No major drawbacks for your answers.</li>}</ul>
+          </div>
+        </div>
+      )}
+      <div className="plan-foot">
+        <button className="linkbtn" type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+          {open ? 'Hide details' : 'Why this plan?'}
+        </button>
+        <label className="check">
+          <input type="checkbox" aria-label={`Add ${r.name} to compare`} checked={checked} disabled={!checked && selected.length >= MAX} onChange={() => toggle(r.slug)} />
+          Add to compare
+        </label>
+      </div>
+    </article>
   );
 }
 
 export default function Results() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { start } = useWizard();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [selected, setSelected] = useState(() => store.get(`xv.compare.${id}`, []));
+  const [sort, setSort] = useState('match');
+  const [banks, setBanks] = useState([]);
+  const [inBudget, setInBudget] = useState(false);
+  const [selected, setSelected] = useState(() => store.get(`pr.compare.${id}`, []));
 
   useEffect(() => {
-    api.assessment(id).then(setData).catch(() => setError('We could not find that recommendation.'));
+    api.assessment(id).then(setData).catch(() => setError('We couldn’t find this recommendation.'));
   }, [id]);
-
   useEffect(() => {
-    store.set(`xv.compare.${id}`, selected);
+    store.set(`pr.compare.${id}`, selected);
   }, [id, selected]);
 
-  const toggle = (slug) =>
-    setSelected((s) => (s.includes(slug) ? s.filter((x) => x !== slug) : s.length < MAX_COMPARE ? [...s, slug] : s));
+  const toggle = (slug) => setSelected((s) => (s.includes(slug) ? s.filter((x) => x !== slug) : s.length < MAX ? [...s, slug] : s));
 
-  if (error) return <div className="wrap loading">{error} <Link to="/consultation">Begin a new consultation.</Link></div>;
-  if (!data) return <div className="wrap loading">Preparing your recommendation…</div>;
+  const list = useMemo(() => {
+    if (!data) return [];
+    return data.results
+      .filter((r) => !banks.length || banks.includes(r.bank))
+      .filter((r) => !inBudget || r.premium.monthly <= data.profile.budgetMonthly)
+      .sort(SORTS[sort].fn);
+  }, [data, banks, inBudget, sort]);
+
+  if (error) return <div className="loading">{error} <Link to="/account">See your recommendations</Link></div>;
+  if (!data) return <div className="loading">Loading your plans…</div>;
 
   const { profile: p, results, declined } = data;
-  const top = results.slice(0, 3);
-  const rest = results.slice(3);
-  const names = selected.map((s) => results.find((r) => r.slug === s)?.name).filter(Boolean);
+  const a = data.answers || {};
+  const bankOptions = [...new Map(results.map((r) => [r.bank, r])).values()];
+  const members = ['self', 'spouse', 'father', 'mother'].filter((k) => a.members?.[k]).map((k) => `${memberLabel(k, a.gender)} (${a.ages?.[k]})`);
+  if (p.children) members.push(`${p.children} child${p.children > 1 ? 'ren' : ''}`);
+  const topMatch = results[0]?.slug;
+  const chosen = selected.map((s) => results.find((r) => r.slug === s)).filter(Boolean);
 
   return (
-    <div className="wrap" style={{ paddingBottom: 110 }}>
-      <section className="verdict">
-        <div>
-          <div className="eyebrow">Our recommendation</div>
-          <h1>
-            A cover of <em>{cover(p.recommendedSumInsured)}</em>, {p.lives > 1 ? 'on a single family floater' : 'on an individual policy'}.
-          </h1>
-          <p>
-            For {householdPhrase(p)}, the eldest aged {p.eldestAge}, with your preference for {PRIORITY[p.priority]}, we have
-            weighed {results.length + declined.length} policies. {results.length} are open to you; the three we would
-            place before you first are set out below, each with its reasons and its limits.
-          </p>
+    <>
+      <section className="results-top">
+        <div className="wrap">
+          <div className="summary">
+            <div>
+              <h1>We recommend a cover of <span>{cover(p.recommendedSumInsured)}</span></h1>
+              <p>{results.length} plans available for your family · {declined.length} not eligible</p>
+            </div>
+            <button className="btn outline" onClick={() => start({ prefill: a, at: 0 })}>Edit answers</button>
+          </div>
+          <div className="tags">
+            {members.map((m) => <span className="tag" key={m}>{m}</span>)}
+            <span className="tag">Budget up to {rupees(p.budgetMonthly)}/month</span>
+            <span className="tag">Priority: {PRIORITY[p.priority]}</span>
+          </div>
+          <details className="why-si">
+            <summary>How we calculated {cover(p.recommendedSumInsured)}</summary>
+            <ul>{p.sumInsuredReasons.map((x) => <li key={x}>{x}</li>)}</ul>
+          </details>
         </div>
-        <aside className="margin-note">
-          <h3>How we arrived at this figure</h3>
-          <ul>
-            {p.sumInsuredReasons.map((r) => <li key={r}>{r}</li>)}
-          </ul>
-        </aside>
       </section>
 
-      <div className="section-head">
-        <h2>The Shortlist</h2>
-        <hr className="rule" />
-      </div>
-
-      <div className="shortlist">
-        {top.map((r) => (
-          <article className="entry" key={r.slug}>
-            <div className="rank">{roman(r.rank)}</div>
-            <div>
-              <div className="insurer">{r.insurer}</div>
-              <h3>{r.name}</h3>
-              <ul>
-                {r.reasons.map((x) => <li key={x}>{x}</li>)}
-                {r.caveats.map((x) => <li key={x} className="caveat">{x}</li>)}
-              </ul>
-            </div>
-            <div className="figures">
-              <div className="big">{rupees(r.premium.monthly)}</div>
-              <div className="per">a month, estimated</div>
-              <dl>
-                <dt>Cover</dt><dd>{cover(r.sumInsured)}</dd>
-                <dt>Annually</dt><dd>{rupees(r.premium.annual)}</dd>
-              </dl>
-            </div>
-            <div className="actions">
-              <div className="match">{r.match}<small> / 100 suitability</small></div>
-              <CompareBox slug={r.slug} name={r.name} selected={selected} toggle={toggle} />
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {rest.length > 0 && (
-        <>
-          <div className="section-head" style={{ marginTop: 64 }}>
-            <h2>The Remainder of the Register</h2>
-            <hr className="rule" />
+      <div className="wrap results">
+        <aside className="filters" aria-label="Filters">
+          <h3>Sort by</h3>
+          <select className="select" value={sort} onChange={(e) => setSort(e.target.value)} aria-label="Sort plans">
+            {Object.entries(SORTS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+          </select>
+          <div className="group">
+            <label className="opt"><input type="checkbox" checked={inBudget} onChange={(e) => setInBudget(e.target.checked)} /> Within my budget</label>
           </div>
-          <table className="ledger">
-            <thead>
-              <tr>
-                <th>No.</th>
-                <th>Policy</th>
-                <th className="hide-sm">Principal note</th>
-                <th className="num">Cover</th>
-                <th className="num">Monthly</th>
-                <th className="num">Suitability</th>
-                <th className="num"><span className="hide-sm">Compare</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rest.map((r) => (
-                <tr key={r.slug}>
-                  <td className="rank-cell">{roman(r.rank)}</td>
-                  <td>
-                    <div className="plan-insurer">{r.insurer}</div>
-                    <div className="plan-name">{r.name}</div>
-                  </td>
-                  <td className="hide-sm" style={{ color: r.caveats[0] ? 'var(--oxblood)' : 'var(--ink-soft)', maxWidth: 300 }}>
-                    {r.caveats[0] || r.reasons[0]}
-                  </td>
-                  <td className="num">{cover(r.sumInsured)}</td>
-                  <td className="num">{rupees(r.premium.monthly)}</td>
-                  <td className="num">{r.match}</td>
-                  <td className="num"><CompareBox slug={r.slug} name={r.name} selected={selected} toggle={toggle} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+          <div className="group">
+            <h3>Banks</h3>
+            {bankOptions.map((r) => (
+              <label className="opt" key={r.bank}>
+                <input type="checkbox" checked={banks.includes(r.bank)} onChange={() => setBanks((b) => (b.includes(r.bank) ? b.filter((x) => x !== r.bank) : [...b, r.bank]))} />
+                {r.bankShort}
+              </label>
+            ))}
+            {banks.length > 0 && <button className="linkbtn" style={{ marginTop: 8, fontSize: 14 }} onClick={() => setBanks([])}>Clear</button>}
+          </div>
+        </aside>
 
-      {declined.length > 0 && (
-        <section className="declined">
-          <h3>Policies not open to your household</h3>
-          {declined.map((d) => (
-            <p key={d.slug}>
-              <em>{d.insurer}, {d.name}.</em> {d.reasons.join(' ')}
-            </p>
+        <div>
+          <div className="count-line">
+            <span>Showing {list.length} of {results.length} plans</span>
+            <span>Premiums are estimates</span>
+          </div>
+          {list.map((r) => (
+            <PlanCard key={r.slug} r={r} best={r.slug === topMatch} selected={selected} toggle={toggle} />
           ))}
-        </section>
-      )}
+          {!list.length && <div className="empty"><p>No plans match these filters.</p></div>}
 
-      <p className="footnote" style={{ marginTop: 40 }}>
-        Premiums are estimates inclusive of 18% GST and will be confirmed by the insurer after medical underwriting.{' '}
-        <Link to="/consultation">Begin a fresh consultation</Link>.
-      </p>
+          {declined.length > 0 && (
+            <div className="declined">
+              <h3>Not available for your family</h3>
+              {declined.map((d) => <p key={d.slug}><b>{d.bankShort} {d.name}:</b> {d.reasons.join(' ')}</p>)}
+            </div>
+          )}
+          <p className="disclaimer">Sample plans for demonstration. Premiums include 18% GST and are confirmed by the insurer after medical underwriting.</p>
+        </div>
+      </div>
 
       <div className={`tray${selected.length ? ' open' : ''}`} aria-hidden={!selected.length}>
         <div className="wrap">
-          <span className="smallcaps">{selected.length} of {MAX_COMPARE} chosen for comparison</span>
-          <span className="names">{names.join(' · ')}</span>
-          <button
-            type="button"
-            className="btn"
-            disabled={selected.length < 2}
-            onClick={() => navigate(`/compare?plans=${selected.join(',')}&a=${id}`)}
-          >
-            Compare side by side <span className="arrow">→</span>
+          <div className="slots">
+            {chosen.map((r) => (
+              <div className="slot" key={r.slug}>
+                <BankMono monogram={r.monogram} tint={r.tint} />
+                <span>{r.name}</span>
+                <button onClick={() => toggle(r.slug)} aria-label={`Remove ${r.name}`}>×</button>
+              </div>
+            ))}
+            {Array.from({ length: MAX - chosen.length }, (_, i) => <div className="slot empty" key={i}>Add a plan</div>)}
+          </div>
+          <button className="btn" disabled={selected.length < 2} onClick={() => navigate(`/compare?plans=${selected.join(',')}&a=${id}`)}>
+            Compare {selected.length > 1 ? selected.length : ''} plans
           </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

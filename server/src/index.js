@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { connectDb } from './db.js';
-import { seedPlans } from './seed/seed.js';
+import { seedCatalogue } from './seed/seed.js';
 import { api } from './routes.js';
 
 const app = express();
@@ -32,5 +32,5 @@ try {
   }
   process.exit(1);
 }
-await seedPlans();
+await seedCatalogue();
 app.listen(port, () => console.log(`[api] listening on http://localhost:${port}`));
