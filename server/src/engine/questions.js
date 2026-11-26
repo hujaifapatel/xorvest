@@ -1,0 +1,176 @@
+// The questionnaire lives on the server so the wizard and the scoring engine
+// always agree on ids and option values.
+
+export const CHAPTERS = [
+  { id: 'household', title: 'The Household' },
+  { id: 'health', title: 'Matters of Health' },
+  { id: 'means', title: 'Means & Existing Cover' },
+  { id: 'preferences', title: 'Preferences' },
+];
+
+export const QUESTIONS = [
+  {
+    id: 'members',
+    chapter: 'household',
+    type: 'members',
+    prompt: 'Whom shall the policy cover?',
+    help: 'A single family floater usually costs less than separate policies for each person.',
+  },
+  {
+    id: 'eldestAge',
+    chapter: 'household',
+    type: 'number',
+    min: 18,
+    max: 80,
+    prompt: 'What is the age of the eldest person to be covered?',
+    help: 'Premiums and eligibility are set by the eldest member of a floater.',
+  },
+  {
+    id: 'cityTier',
+    chapter: 'household',
+    type: 'single',
+    prompt: 'Where does the household reside?',
+    help: 'Hospital costs differ by city, and insurers price their zones accordingly.',
+    options: [
+      { value: 'metro', label: 'A metropolitan city', note: 'Mumbai, Delhi NCR, Bengaluru, Chennai, Kolkata, Hyderabad, Pune, Ahmedabad' },
+      { value: 'tier1', label: 'A large city', note: 'Jaipur, Lucknow, Kochi, Chandigarh, Indore and similar' },
+      { value: 'tier2', label: 'A smaller city or town', note: 'Elsewhere in India' },
+    ],
+  },
+  {
+    id: 'conditions',
+    chapter: 'health',
+    type: 'multi',
+    prompt: 'Does anyone to be covered have a pre-existing condition?',
+    help: 'Select all that apply. Disclosure is essential; undisclosed conditions are the commonest cause of rejected claims.',
+    exclusive: 'none',
+    options: [
+      { value: 'none', label: 'None of these' },
+      { value: 'diabetes', label: 'Diabetes' },
+      { value: 'hypertension', label: 'Blood pressure' },
+      { value: 'thyroid', label: 'Thyroid disorder' },
+      { value: 'asthma', label: 'Asthma or respiratory illness' },
+      { value: 'cardiac', label: 'Heart ailment' },
+      { value: 'other', label: 'Another long-standing condition' },
+    ],
+  },
+  {
+    id: 'tobacco',
+    chapter: 'health',
+    type: 'single',
+    prompt: 'Does anyone in the household use tobacco?',
+    options: [
+      { value: 'no', label: 'No' },
+      { value: 'yes', label: 'Yes, occasionally or regularly' },
+    ],
+  },
+  {
+    id: 'hospitalised',
+    chapter: 'health',
+    type: 'single',
+    prompt: 'Has anyone been admitted to hospital in the past three years?',
+    help: 'Frequent admissions make a restoration benefit worth paying for.',
+    options: [
+      { value: 'no', label: 'No' },
+      { value: 'once', label: 'Once' },
+      { value: 'multiple', label: 'More than once' },
+    ],
+  },
+  {
+    id: 'maternity',
+    chapter: 'health',
+    type: 'single',
+    prompt: 'Is the family likely to grow in the next three or four years?',
+    help: 'Maternity cover carries a waiting period, so it must be bought well ahead.',
+    options: [
+      { value: 'yes', label: 'Yes, it is planned' },
+      { value: 'unsure', label: 'Perhaps' },
+      { value: 'no', label: 'No' },
+    ],
+  },
+  {
+    id: 'income',
+    chapter: 'means',
+    type: 'single',
+    prompt: 'What is the household’s annual income?',
+    help: 'This guides how much cover is sensible, not which plans you are shown.',
+    options: [
+      { value: 'lt5', label: 'Under ₹5 lakh' },
+      { value: '5to10', label: '₹5 – 10 lakh' },
+      { value: '10to25', label: '₹10 – 25 lakh' },
+      { value: '25to50', label: '₹25 – 50 lakh' },
+      { value: 'gt50', label: 'Above ₹50 lakh' },
+    ],
+  },
+  {
+    id: 'budget',
+    chapter: 'means',
+    type: 'single',
+    prompt: 'What monthly premium would you consider comfortable?',
+    options: [
+      { value: '1000', label: 'Up to ₹1,000' },
+      { value: '2000', label: '₹1,000 – 2,000' },
+      { value: '4000', label: '₹2,000 – 4,000' },
+      { value: '8000', label: '₹4,000 – 8,000' },
+      { value: '15000', label: 'Above ₹8,000' },
+    ],
+  },
+  {
+    id: 'employerCover',
+    chapter: 'means',
+    type: 'single',
+    prompt: 'Is the household already covered by an employer’s policy?',
+    help: 'Employer cover ends when employment does, so we count only part of it.',
+    options: [
+      { value: '0', label: 'No' },
+      { value: '3', label: 'Yes, up to ₹5 lakh' },
+      { value: '7', label: 'Yes, ₹5 – 10 lakh' },
+      { value: '12', label: 'Yes, more than ₹10 lakh' },
+    ],
+  },
+  {
+    id: 'room',
+    chapter: 'preferences',
+    type: 'single',
+    prompt: 'In hospital, what sort of room would you expect?',
+    help: 'Room-rent limits reduce the payout on the entire bill, not only the room charge.',
+    options: [
+      { value: 'any', label: 'Any room, including suites', note: 'Requires a plan with no room-rent limit' },
+      { value: 'single', label: 'A private single room' },
+      { value: 'shared', label: 'A shared room is acceptable' },
+    ],
+  },
+  {
+    id: 'copay',
+    chapter: 'preferences',
+    type: 'single',
+    prompt: 'Would you share a portion of each claim in exchange for a lower premium?',
+    options: [
+      { value: 'never', label: 'No, the insurer should pay in full' },
+      { value: 'acceptable', label: 'Yes, a modest share is acceptable' },
+    ],
+  },
+  {
+    id: 'opd',
+    chapter: 'preferences',
+    type: 'single',
+    prompt: 'How important is cover for doctor visits and outpatient care?',
+    options: [
+      { value: 'essential', label: 'Essential' },
+      { value: 'nice', label: 'Welcome, but not essential' },
+      { value: 'no', label: 'Unnecessary' },
+    ],
+  },
+  {
+    id: 'priority',
+    chapter: 'preferences',
+    type: 'single',
+    prompt: 'Above all else, what should the policy do well?',
+    options: [
+      { value: 'premium', label: 'Keep the premium modest' },
+      { value: 'coverage', label: 'Cover as much as possible' },
+      { value: 'claims', label: 'Settle claims reliably and quickly' },
+      { value: 'network', label: 'Offer cashless treatment at many hospitals' },
+    ],
+  },
+];
