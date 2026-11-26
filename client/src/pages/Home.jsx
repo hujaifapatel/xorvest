@@ -102,7 +102,28 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="section alt" id="how">
+      <section className="section alt" id="why">
+        <div className="wrap">
+          <div className="section-title">
+            <div className="eyebrow">Why buy health insurance</div>
+            <h2>One hospital stay can undo years of savings</h2>
+            <p>Medical costs in India rise faster than most salaries. A health plan keeps treatment decisions about health, not money.</p>
+          </div>
+          <div className="why-grid">
+            <div className="why-card"><span className="ico"><Wallet /></span><h3>Protect your savings</h3><p>Surgery, ICU stays and long treatments are paid by the insurer, not from your emergency fund or loans.</p></div>
+            <div className="why-card"><span className="ico"><Hospital /></span><h3>Cashless treatment</h3><p>At network hospitals the bill is settled directly with the insurer, so you don’t arrange money during an emergency.</p></div>
+            <div className="why-card"><span className="ico"><Clock /></span><h3>Waiting periods start early</h3><p>Cover for existing illnesses and maternity begins only after a waiting period. Buying sooner means you’re covered sooner.</p></div>
+            <div className="why-card"><span className="ico"><Shield /></span><h3>Beyond your office cover</h3><p>Employer cover ends when you change jobs or retire, and is often too small for parents. Your own plan stays with you.</p></div>
+            <div className="why-card"><span className="ico"><Wallet /></span><h3>Tax benefit under 80D</h3><p>Premiums for yourself, family and parents can be deducted from taxable income under Section 80D, within the limits set by law.</p></div>
+            <div className="why-card"><span className="ico"><Shield /></span><h3>Lower premium when young</h3><p>Premiums depend on age and health at purchase. Starting young locks in a lower price and fewer exclusions.</p></div>
+          </div>
+          <div style={{ textAlign: 'center', marginTop: 30 }}>
+            <button className="btn accent" onClick={() => start()}>Find my plan <Arrow /></button>
+          </div>
+        </div>
+      </section>
+
+      <section className="section" id="how">
         <div className="wrap">
           <div className="section-title">
             <div className="eyebrow">How it works</div>

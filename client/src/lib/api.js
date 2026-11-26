@@ -42,6 +42,9 @@ export const api = {
   register: (form) => request('/auth/register', { method: 'POST', body: form }),
   login: (form) => request('/auth/login', { method: 'POST', body: form }),
   me: () => request('/auth/me'),
+  interests: () => request('/interests'),
+  addInterest: (planSlug, assessmentId) => request('/interests', { method: 'POST', body: { planSlug, assessmentId } }),
+  removeInterest: (planSlug) => request(`/interests/${encodeURIComponent(planSlug)}`, { method: 'DELETE' }),
 };
 
 export const store = {

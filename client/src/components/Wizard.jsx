@@ -176,10 +176,45 @@ function Ring({ pct }) {
   return (
     <div className="ring" aria-hidden="true">
       <svg width="46" height="46">
-        <circle cx="23" cy="23" r={r} fill="none" stroke="#e1e7f3" strokeWidth="4" />
-        <circle cx="23" cy="23" r={r} fill="none" stroke="#11804a" strokeWidth="4" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} style={{ transition: 'stroke-dashoffset .3s' }} />
+        <circle cx="23" cy="23" r={r} fill="none" stroke="var(--line)" strokeWidth="4" />
+        <circle cx="23" cy="23" r={r} fill="none" stroke="var(--primary)" strokeWidth="4" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct / 100)} style={{ transition: 'stroke-dashoffset .3s' }} />
       </svg>
       <b>{pct}%</b>
+    </div>
+  );
+}
+
+function describe(q, answers) {
+  const v = answers[q.id];
+  const g = answers.gender;
+  if (q.type === 'members') {
+    const parts = ADULTS.filter((k) => v?.[k]).map((k) => memberLabel(k, g));
+    if (v?.son) parts.push(`${v.son} son${v.son > 1 ? 's' : ''}`);
+    if (v?.daughter) parts.push(`${v.daughter} daughter${v.daughter > 1 ? 's' : ''}`);
+    return parts.join(', ');
+  }
+  if (q.type === 'ages') return ADULTS.filter((k) => answers.members?.[k]).map((k) => `${memberLabel(k, g)} ${v?.[k] ?? '–'}`).join(', ');
+  if (q.type === 'multi') return (v || []).map((x) => q.options.find((o) => o.value === x)?.label).join(', ');
+  return q.options?.find((o) => o.value === v)?.label ?? '–';
+}
+
+function Summary({ data, answers, onEdit }) {
+  return (
+    <div className="summary-list">
+      {data.chapters.map((c) => (
+        <section key={c.id}>
+          <h3>{c.title}</h3>
+          {data.questions.map((q, i) => (q.chapter !== c.id ? null : (
+            <div className="sum-row" key={q.id}>
+              <div>
+                <span>{q.id === 'gender' ? 'Your gender' : q.prompt}</span>
+                <b>{describe(q, answers)}</b>
+              </div>
+              <button type="button" className="linkbtn" onClick={() => onEdit(i)} aria-label={`Edit: ${q.prompt}`}>Edit</button>
+            </div>
+          )))}
+        </section>
+      ))}
     </div>
   );
 }
@@ -193,7 +228,8 @@ function WizardModal() {
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
-  const [phase, setPhase] = useState('questions'); // questions | auth | submitting
+  const [phase, setPhase] = useState('questions'); // questions | summary | auth | submitting
+  const [amending, setAmending] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -229,15 +265,27 @@ function WizardModal() {
       if (e.status === 401) setPhase('auth');
       else {
         setError(e.message);
-        setPhase('questions');
+        setPhase('summary');
       }
     }
   }, [answers, close, navigate, reset]);
 
-  const finish = useCallback(() => {
+  // After the last question (or after editing one answer) show the summary.
+  const toSummary = useCallback(() => {
+    setAmending(false);
+    setPhase('summary');
+  }, []);
+
+  const confirm = useCallback(() => {
     if (!user) setPhase('auth');
     else submit();
   }, [user, submit]);
+
+  const edit = (i) => {
+    setAmending(true);
+    setStep(i);
+    setPhase('questions');
+  };
 
   const next = useCallback(() => {
     if (!q) return;
@@ -246,14 +294,15 @@ function WizardModal() {
       return;
     }
     setError('');
-    if (idx >= total - 1) finish();
+    if (amending || idx >= total - 1) toSummary();
     else setStep(idx + 1);
-  }, [q, value, answers, idx, total, finish, setStep]);
+  }, [q, value, answers, idx, total, amending, toSummary, setStep]);
 
   const back = () => {
     setError('');
     clearTimeout(timer.current);
-    if (phase === 'auth') return setPhase('questions');
+    if (phase === 'auth') return setPhase('summary');
+    if (phase === 'summary') return setPhase('questions');
     setStep(Math.max(0, idx - 1));
   };
 
@@ -263,19 +312,19 @@ function WizardModal() {
     if (q.type === 'single' || q.type === 'city') {
       clearTimeout(timer.current);
       timer.current = setTimeout(() => {
-        if (idx >= total - 1) finish();
+        if (amending || idx >= total - 1) toSummary();
         else setStep(idx + 1);
       }, 260);
     }
   };
 
   const chapterIdx = data && q ? data.chapters.findIndex((c) => c.id === q.chapter) : 0;
-  const pct = total ? Math.round(((phase === 'questions' ? idx : total) / total) * 100) : 0;
+  const pct = total ? Math.round(((phase === 'questions' && !amending ? idx : total) / total) * 100) : 0;
 
   const chapterProgress = (ci) => {
     if (!data) return 0;
     const inCh = questions.map((qq, i) => [qq, i]).filter(([qq]) => qq.chapter === data.chapters[ci].id);
-    const done = inCh.filter(([, i]) => (phase === 'questions' ? i < idx : true)).length;
+    const done = inCh.filter(([, i]) => (phase === 'questions' && !amending ? i < idx : true)).length;
     return (done / inCh.length) * 100;
   };
 
@@ -286,7 +335,7 @@ function WizardModal() {
           <Ring pct={pct} />
           <div className="title">
             <b>Find the right health plan</b>
-            <span>{phase === 'auth' ? 'Last step: save your results' : total ? `Question ${idx + 1} of ${total}` : 'Loading…'}</span>
+            <span>{phase === 'auth' ? 'Last step: save your results' : phase === 'summary' ? 'Review your answers' : total ? `Question ${idx + 1} of ${total}` : 'Loading…'}</span>
           </div>
           <button className="close" onClick={close} aria-label="Close"><Close /></button>
         </div>
@@ -318,6 +367,15 @@ function WizardModal() {
             </div>
           )}
 
+          {data && phase === 'summary' && (
+            <div>
+              <h2 id="wz-title">Here’s what you told us</h2>
+              <p className="help">Check your answers before we compare plans. Tap Edit to change anything.</p>
+              <Summary data={data} answers={answers} onEdit={edit} />
+              {error && <p className="err" role="alert">{error}</p>}
+            </div>
+          )}
+
           {phase === 'auth' && (
             <div>
               <h2 id="wz-title">Your plans are ready</h2>
@@ -343,7 +401,12 @@ function WizardModal() {
             </button>
             {phase === 'questions' && (
               <button className="btn" onClick={next}>
-                {idx >= total - 1 ? 'View plans' : 'Continue'} <Arrow />
+                {amending ? 'Save & review' : idx >= total - 1 ? 'Review answers' : 'Continue'} <Arrow />
+              </button>
+            )}
+            {phase === 'summary' && (
+              <button className="btn accent" onClick={confirm}>
+                Confirm & view plans <Arrow />
               </button>
             )}
           </div>

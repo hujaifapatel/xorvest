@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import { cover, ROOM } from '../lib/format.js';
 import { useWizard } from '../components/Wizard.jsx';
 import BankMono from '../components/BankMono.jsx';
+import InterestButton from '../components/InterestButton.jsx';
 
 export default function AllPlans() {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ export default function AllPlans() {
       <div className="table-card">
         <table className="list-table">
           <thead>
-            <tr><th>Plan</th><th>Type</th><th>Room rent</th><th>Cover</th><th>Claims settled</th><th>Compare</th></tr>
+            <tr><th>Plan</th><th>Type</th><th>Room rent</th><th>Cover</th><th>Claims settled</th><th>Compare</th><th /></tr>
           </thead>
           <tbody>
             {shown.map((p) => (
@@ -84,9 +85,10 @@ export default function AllPlans() {
                     <input type="checkbox" aria-label={`Compare ${p.name}`} checked={selected.includes(p.slug)} disabled={!selected.includes(p.slug) && selected.length >= 3} onChange={() => toggle(p.slug)} />
                   </label>
                 </td>
+                <td><InterestButton planSlug={p.slug} planName={p.name} size="sm" /></td>
               </tr>
             ))}
-            {!shown.length && <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--muted)' }}>No plans match these filters.</td></tr>}
+            {!shown.length && <tr><td colSpan={7} style={{ textAlign: 'center', color: 'var(--muted)' }}>No plans match these filters.</td></tr>}
           </tbody>
         </table>
       </div>

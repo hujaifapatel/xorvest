@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { Plan, flattenPlan } from './models/Plan.js';
 import { Bank } from './models/Bank.js';
 import { Assessment } from './models/Assessment.js';
+import { Interest } from './models/Interest.js';
 import { QUESTIONS, CHAPTERS, ADULT_MEMBERS } from './engine/questions.js';
 import { recommend } from './engine/score.js';
 import { authRouter, requireAuth } from './auth.js';
@@ -92,4 +93,56 @@ api.get('/assessments/:id', requireAuth, wrap(async (req, res) => {
   const doc = await Assessment.findOne({ _id: req.params.id, user: req.userId }).lean();
   if (!doc) return res.status(404).json({ error: 'Not found' });
   res.json({ id: doc._id, createdAt: doc.createdAt, profile: doc.profile, results: doc.results, declined: doc.declined, answers: doc.answers });
+}));
+
+/* ── Interested bucket ── */
+
+async function listInterests(userId) {
+  const rows = await Interest.find({ user: userId })
+    .sort({ createdAt: -1 })
+    .populate({ path: 'plan', populate: { path: 'bank' } })
+    .lean();
+  return rows
+    .filter((r) => r.plan)
+    .map((r) => ({
+      id: r._id,
+      createdAt: r.createdAt,
+      assessment: r.assessment,
+      sumInsured: r.sumInsured,
+      monthly: r.monthly,
+      annual: r.annual,
+      match: r.match,
+      plan: flattenPlan(r.plan),
+    }));
+}
+
+api.get('/interests', requireAuth, wrap(async (req, res) => {
+  res.json(await listInterests(req.userId));
+}));
+
+api.post('/interests', requireAuth, wrap(async (req, res) => {
+  const planSlug = String(req.body?.planSlug || '');
+  const plan = await Plan.findOne({ slug: planSlug }).lean();
+  if (!plan) return res.status(404).json({ error: 'Plan not found' });
+
+  const snapshot = {};
+  const assessmentId = req.body?.assessmentId;
+  if (assessmentId && mongoose.isValidObjectId(assessmentId)) {
+    const a = await Assessment.findOne({ _id: assessmentId, user: req.userId }, { results: 1 }).lean();
+    const r = a?.results.find((x) => x.slug === planSlug);
+    if (r) Object.assign(snapshot, { assessment: a._id, sumInsured: r.sumInsured, monthly: r.premium.monthly, annual: r.premium.annual, match: r.match });
+  }
+
+  await Interest.updateOne(
+    { user: req.userId, plan: plan._id },
+    { $set: snapshot, $setOnInsert: { user: req.userId, plan: plan._id } },
+    { upsert: true }
+  );
+  res.status(201).json(await listInterests(req.userId));
+}));
+
+api.delete('/interests/:planSlug', requireAuth, wrap(async (req, res) => {
+  const plan = await Plan.findOne({ slug: req.params.planSlug }, { _id: 1 }).lean();
+  if (plan) await Interest.deleteOne({ user: req.userId, plan: plan._id });
+  res.json(await listInterests(req.userId));
 }));

@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { rupees, cover, ROOM, RESTORE } from '../lib/format.js';
 import BankMono from '../components/BankMono.jsx';
+import InterestButton from '../components/InterestButton.jsx';
 
 const ROOM_RANK = { 'no-limit': 4, 'single-private': 3, shared: 2, '1pct': 1 };
 const RESTORE_RANK = { unlimited: 2, once: 1, none: 0 };
@@ -104,6 +105,7 @@ export default function Compare() {
                     <BankMono monogram={p.monogram} tint={p.tint} />
                     <div><span>{p.bankName}</span><b>{p.name}</b></div>
                   </div>
+                  <div style={{ marginTop: 12 }}><InterestButton planSlug={p.slug} planName={p.name} assessmentId={assessmentId} size="sm" /></div>
                 </th>
               ))}
             </tr>

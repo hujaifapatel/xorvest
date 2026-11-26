@@ -5,6 +5,7 @@ import { rupees, cover, memberLabel, PRIORITY } from '../lib/format.js';
 import { useWizard } from '../components/Wizard.jsx';
 import BankMono from '../components/BankMono.jsx';
 import { Check } from '../components/Icons.jsx';
+import InterestButton from '../components/InterestButton.jsx';
 
 const MAX = 3;
 const SORTS = {
@@ -13,7 +14,7 @@ const SORTS = {
   claims: { label: 'Best claim record', fn: (a, b) => (b.scores.claims ?? 0) - (a.scores.claims ?? 0) },
 };
 
-function PlanCard({ r, best, selected, toggle }) {
+function PlanCard({ r, best, selected, toggle, assessmentId }) {
   const [open, setOpen] = useState(false);
   const checked = selected.includes(r.slug);
   return (
@@ -35,10 +36,9 @@ function PlanCard({ r, best, selected, toggle }) {
         </ul>
         <div className="price">
           <div className="cover">Cover <b>{cover(r.sumInsured)}</b></div>
-          <button className="btn accent" type="button" onClick={() => setOpen(true)}>
-            {rupees(r.premium.monthly)}<small>/month</small>
-          </button>
+          <div className="amount num">{rupees(r.premium.monthly)}<small>/month</small></div>
           <div className="yr num">{rupees(r.premium.annual)} annually incl. GST</div>
+          <InterestButton planSlug={r.slug} planName={r.name} assessmentId={assessmentId} block />
         </div>
       </div>
       {open && (
@@ -155,7 +155,7 @@ export default function Results() {
             <span>Premiums are estimates</span>
           </div>
           {list.map((r) => (
-            <PlanCard key={r.slug} r={r} best={r.slug === topMatch} selected={selected} toggle={toggle} />
+            <PlanCard key={r.slug} r={r} best={r.slug === topMatch} selected={selected} toggle={toggle} assessmentId={id} />
           ))}
           {!list.length && <div className="empty"><p>No plans match these filters.</p></div>}
 

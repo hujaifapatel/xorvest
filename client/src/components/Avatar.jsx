@@ -1,6 +1,6 @@
 // Simple flat avatars for family members, drawn in SVG (no stock imagery).
 const LOOKS = {
-  male: { bg: '#e3ecff', skin: '#f2c7a5', hair: '#3a2a20', shirt: '#1a4fd8', long: false, grey: false, small: false },
+  male: { bg: '#dff0ec', skin: '#f2c7a5', hair: '#3a2a20', shirt: '#0b6e69', long: false, grey: false, small: false },
   female: { bg: '#ffe9e1', skin: '#efc2a0', hair: '#4a2d22', shirt: '#e0613a', long: true, grey: false, small: false },
   boy: { bg: '#e1f5ec', skin: '#f4cdb0', hair: '#2f2219', shirt: '#11804a', long: false, grey: false, small: true },
   girl: { bg: '#fdf0d8', skin: '#f4cdb0', hair: '#3b2519', shirt: '#d48a0c', long: true, grey: false, small: true },

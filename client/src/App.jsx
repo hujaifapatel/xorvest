@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Routes, Route, NavLink, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 import { WizardProvider, useWizard } from './components/Wizard.jsx';
+import { InterestsProvider, useInterests } from './lib/interests.jsx';
+import Interested from './pages/Interested.jsx';
 import { Logo } from './components/Icons.jsx';
 import { BRAND, TAGLINE } from './brand.js';
 import Home from './pages/Home.jsx';
@@ -34,6 +36,7 @@ function UserMenu() {
         <div className="menu" role="menu">
           <div className="who">{user.email}</div>
           <Link to="/account" onClick={() => setOpen(false)}>My recommendations</Link>
+          <Link to="/interested" onClick={() => setOpen(false)}>Interested plans</Link>
           <button onClick={() => { logout(); setOpen(false); navigate('/'); }}>Log out</button>
         </div>
       )}
@@ -44,6 +47,7 @@ function UserMenu() {
 function Header() {
   const { user, ready } = useAuth();
   const { start } = useWizard();
+  const { count } = useInterests();
   return (
     <header className="header">
       <div className="wrap">
@@ -54,8 +58,10 @@ function Header() {
         <nav className="nav" aria-label="Primary">
           <NavLink to="/" end>Health Insurance</NavLink>
           <NavLink to="/all-plans">All Plans</NavLink>
-          <a href="/#banks">Partner Banks</a>
-          <a href="/#faq">Help</a>
+          <Link to="/#why">Why Insurance</Link>
+          <Link to="/#banks">Partner Banks</Link>
+          <Link to="/#faq">Help</Link>
+          {user && <NavLink to="/interested">Interested{count > 0 && <span className="nav-count">{count}</span>}</NavLink>}
         </nav>
         <div className="header-actions">
           {ready && !user && (
@@ -92,11 +98,13 @@ function Footer() {
           <Link to="/login">Log in</Link>
           <Link to="/register">Create account</Link>
           <Link to="/account">My recommendations</Link>
+          <Link to="/interested">Interested plans</Link>
         </div>
         <div>
           <h4>Help</h4>
-          <a href="/#faq">FAQs</a>
-          <a href="/#how">How it works</a>
+          <Link to="/#why">Why buy insurance</Link>
+          <Link to="/#faq">FAQs</Link>
+          <Link to="/#how">How it works</Link>
         </div>
         <p className="legal">
           Plan names, premiums and benefits shown are sample data for demonstration and are not offers from the banks named.
@@ -116,16 +124,39 @@ function RequireAuth({ children }) {
 }
 
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
+    if (!hash) {
+      window.scrollTo(0, 0);
+      return undefined;
+    }
+    // Sections above the anchor (e.g. bank cards) can load late and push it
+    // down, so keep it aligned for the first second.
+    let ticks = 0;
+    const id = setInterval(() => {
+      const el = document.getElementById(hash.slice(1));
+      if (el) {
+        const offset = el.getBoundingClientRect().top - 76;
+        if (Math.abs(offset) > 2) window.scrollTo(0, window.scrollY + offset);
+      }
+      if (++ticks > 20) clearInterval(id);
+    }, 50);
+    const stop = () => clearInterval(id);
+    window.addEventListener('wheel', stop, { once: true });
+    window.addEventListener('touchstart', stop, { once: true });
+    return () => {
+      stop();
+      window.removeEventListener('wheel', stop);
+      window.removeEventListener('touchstart', stop);
+    };
+  }, [pathname, hash]);
   return null;
 }
 
 export default function App() {
   return (
     <AuthProvider>
+      <InterestsProvider>
       <WizardProvider>
         <ScrollToTop />
         <Header />
@@ -136,6 +167,7 @@ export default function App() {
             <Route path="/compare" element={<Compare />} />
             <Route path="/plans/:id" element={<RequireAuth><Results /></RequireAuth>} />
             <Route path="/account" element={<RequireAuth><Account /></RequireAuth>} />
+            <Route path="/interested" element={<RequireAuth><Interested /></RequireAuth>} />
             <Route path="/login" element={<AuthPage mode="login" />} />
             <Route path="/register" element={<AuthPage mode="register" />} />
             <Route path="*" element={<div className="loading">Page not found. <Link to="/">Go home</Link></div>} />
@@ -143,6 +175,7 @@ export default function App() {
         </main>
         <Footer />
       </WizardProvider>
+      </InterestsProvider>
     </AuthProvider>
   );
 }
